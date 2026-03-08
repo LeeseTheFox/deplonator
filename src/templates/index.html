@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Deplonator{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Overview of your Telegram bot deployments{% endblock %}
+
+{% block content %}
+<!-- Quick Stats -->
+<div class="grid grid-2 mb-4">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Total projects</h3>
+        </div>
+        <div class="text-center">
+            <div class="text-3xl font-bold text-primary" id="total-projects">-</div>
+            <div class="text-muted text-small">Projects created</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Running bots</h3>
+        </div>
+        <div class="text-center">
+            <div class="text-3xl font-bold text-success" id="running-bots">-</div>
+            <div class="text-muted text-small">Currently active</div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h3 class="card-title">Quick Actions</h3>
+    </div>
+    <div class="flex gap-4">
+        <a href="/projects/new" class="btn btn-primary">
+            ✚ Create new project
+        </a>
+        <button type="button" class="btn btn-secondary" onclick="BotDeployer.loadProjects()">
+            🔄 Refresh data
+        </button>
+    </div>
+</div>
+
+<!-- Recent Projects -->
+<div class="card mb-4" id="recent-projects-card" style="display: none;">
+    <div class="card-header">
+        <h3 class="card-title">Recent projects</h3>
+        <a href="/projects" class="btn btn-sm btn-secondary">View all</a>
+    </div>
+    
+    <div id="recent-projects" class="recent-projects-list">
+        <div class="loading-indicator text-center">
+            <div class="spinner"></div>
+            <span class="ml-2">Loading projects...</span>
+        </div>
+    </div>
+</div>
+
+<!-- System Status -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">System Status</h3>
+    </div>
+    <div class="grid grid-2">
+        <div>
+            <div class="flex items-center gap-2 mb-2">
+                <div class="status-dot" style="background: #48bb78;"></div>
+                <span>API service</span>
+                <span class="text-success text-small">Online</span>
+            </div>
+            <div class="flex items-center gap-2 mb-2">
+                <div class="status-dot" id="docker-status-dot" style="background: #a0aec0;"></div>
+                <span>Docker engine</span>
+                <span id="docker-status" class="text-muted text-small">Checking...</span>
+            </div>
+        </div>
+        <div>
+            <div class="text-small text-muted">
+                <div>Last updated: <span id="last-updated">-</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Dashboard-specific JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Override the updateProjectsDisplay method for dashboard
+    const originalUpdate = BotDeployer.updateProjectsDisplay;
+    BotDeployer.updateProjectsDisplay = function() {
+        updateDashboardStats();
+        updateRecentProjects();
+        originalUpdate.call(this);
+    };
+    
+    // Check Docker status
+    checkDockerStatus();
+    
+    // Start auto-refresh for dashboard
+    BotDeployer.startAutoRefresh();
+    
+    // Update last updated time
+    updateLastUpdatedTime();
+    setInterval(updateLastUpdatedTime, 1000);
+});
+
+function updateDashboardStats() {
+    const projects = BotDeployer.state.projects;
+    
+    // Update total projects
+    document.getElementById('total-projects').textContent = projects.length;
+    
+    // Count running bots
+    const runningBots = projects.filter(p => p.status === 'running').length;
+    document.getElementById('running-bots').textContent = runningBots;
+}
+
+function updateRecentProjects() {
+    const projects = BotDeployer.state.projects;
+    const recentProjectsCard = document.getElementById('recent-projects-card');
+    const container = document.getElementById('recent-projects');
+    
+    // Hide the entire card if no projects exist
+    if (projects.length === 0) {
+        recentProjectsCard.style.display = 'none';
+        return;
+    }
+    
+    // Show the card and populate with recent projects
+    recentProjectsCard.style.display = 'block';
+    
+    const recentProjects = projects
+        .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+        .slice(0, 5);
+    
+    container.innerHTML = recentProjects.map(project => {
+        const statusInfo = getStatusInfo(project.status);
+        return `
+        <div class="flex items-center justify-between py-4">
+            <div class="flex items-center gap-4">
+                <div class="status ${BotDeployer.getStatusClass(project.status)}">
+                    <div class="status-dot"></div>
+                    ${statusInfo.label}
+                </div>
+                <div>
+                    <div class="font-medium">${project.name}</div>
+                    <div class="text-small text-muted">Last modified ${BotDeployer.formatDate(project.updated_at)}</div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                ${project.status === 'running' ? 
+                    `<button class="btn btn-sm btn-warning" data-action="stop" data-project-id="${project.id}">Stop</button>` :
+                    project.status === 'stopped' ?
+                    `<button class="btn btn-sm btn-success" data-action="start" data-project-id="${project.id}">Start</button>` :
+                    project.status === 'configured' ?
+                    `<button class="btn btn-sm btn-primary" data-action="deploy" data-project-id="${project.id}">Deploy</button>` :
+                    ''
+                }
+                <a href="/projects/${project.id}" class="btn btn-sm btn-secondary">View</a>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+async function checkDockerStatus() {
+    try {
+        // Try to get system status through health check
+        const response = await fetch('/health');
+        const data = await response.json();
+        
+        if (data.status === 'healthy') {
+            document.getElementById('docker-status-dot').style.background = '#48bb78';
+            document.getElementById('docker-status').textContent = 'Connected';
+            document.getElementById('docker-status').className = 'text-success text-small';
+        } else {
+            throw new Error('Service unhealthy');
+        }
+    } catch (error) {
+        document.getElementById('docker-status-dot').style.background = '#f56565';
+        document.getElementById('docker-status').textContent = 'Disconnected';
+        document.getElementById('docker-status').className = 'text-danger text-small';
+    }
+}
+
+function updateLastUpdatedTime() {
+    document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
+}
+
+function getStatusInfo(status) {
+    const statusMap = {
+        'created': { label: 'Created', description: 'Project created, needs configuration' },
+        'configured': { label: 'Configured', description: 'Ready for deployment' },
+        'deploying': { label: 'Deploying', description: 'Deployment in progress' },
+        'running': { label: 'Running', description: 'Bot is active' },
+        'error': { label: 'Error', description: 'Bot is running but errors detected' },
+        'stopped': { label: 'Stopped', description: 'Bot is stopped' },
+        'failed': { label: 'Failed', description: 'Deployment or runtime error' }
+    };
+    
+    return statusMap[status] || { label: status, description: 'Unknown status' };
+}
+</script>
+{% endblock %}

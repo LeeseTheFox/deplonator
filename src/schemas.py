@@ -102,6 +102,20 @@ class ProjectConfig(BaseModel):
     startup_file: Optional[str] = Field(None, description="Relative path to startup file (Python or shell script)")
     auto_start: bool = Field(False, description="Enable auto-start on boot")
     system_dependencies: Optional[str] = Field(None, description="Comma-separated list of system packages (e.g., 'ffmpeg,imagemagick')")
+    python_version: Optional[str] = Field("3.11", description="Python version (e.g., '3.11')")
+    
+    @field_validator('python_version')
+    @classmethod
+    def validate_python_version(cls, v: Optional[str]) -> Optional[str]:
+        """Validate Python version format."""
+        if v is None:
+            return v
+        
+        import re
+        if not re.match(r'^3\.\d+$', v):
+            raise ValueError("Python version must be in format '3.x'")
+            
+        return v
     
     @field_validator('system_dependencies')
     @classmethod
@@ -136,6 +150,7 @@ class ProjectResponse(BaseModel):
     startup_file: Optional[str] = None
     auto_start: bool = False
     system_dependencies: Optional[str] = None
+    python_version: str = "3.11"
     container_id: Optional[str] = None
     errors_silenced: bool = False
     last_error_acknowledged_at: Optional[datetime] = None

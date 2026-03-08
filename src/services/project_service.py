@@ -283,6 +283,8 @@ class ProjectService:
                 requires_redeploy_change = True
             if config.system_dependencies != project.system_dependencies:
                 requires_redeploy_change = True
+            if config.python_version != project.python_version:
+                requires_redeploy_change = True
 
             # Prevent configuration changes while bot is running
             # Exception: auto_start can be changed while running since it updates container policy immediately
@@ -340,6 +342,7 @@ class ProjectService:
             project.startup_file = config.startup_file
             project.auto_start = config.auto_start
             project.system_dependencies = config.system_dependencies
+            project.python_version = config.python_version
             
             if requires_redeploy_change:
                 project.last_modification_at = utc_now()

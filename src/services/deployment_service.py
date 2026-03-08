@@ -1091,7 +1091,8 @@ class DeploymentService:
                 dockerfile_content = self._generate_dockerfile(
                     project.requirements_path,
                     project.startup_file,
-                    project.system_dependencies
+                    project.system_dependencies,
+                    project.python_version
                 )
                 
                 dockerfile_path = os.path.join(temp_dir, "Dockerfile")
@@ -1143,7 +1144,7 @@ class DeploymentService:
                 error_message=f"Build preparation failed: {str(e)}"
             )
     
-    def _generate_dockerfile(self, requirements_path: str, startup_file: str, system_dependencies: Optional[str] = None) -> str:
+    def _generate_dockerfile(self, requirements_path: str, startup_file: str, system_dependencies: Optional[str] = None, python_version: str = "3.11") -> str:
         """
         Generate Dockerfile content for project with proper path handling.
         
@@ -1159,6 +1160,7 @@ class DeploymentService:
             requirements_path: Relative path to requirements.txt
             startup_file: Relative path to startup file (Python or shell script)
             system_dependencies: Optional comma-separated list of system packages
+            python_version: Selected Python version (e.g. '3.11')
             
         Returns:
             Dockerfile content as string
@@ -1212,7 +1214,7 @@ RUN python -m venv /opt/venv && \\
         # Build the make executable section if needed
         make_executable_section = f"\n{make_executable}\n" if make_executable else ""
         
-        return f"""FROM python:3.11-slim
+        return f"""FROM python:{python_version}-slim
 
 WORKDIR /app
 

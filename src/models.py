@@ -97,6 +97,7 @@ class Project(Base):
     startup_file = Column(String, nullable=True)       # Relative path to startup file (Python or shell script)
     auto_start = Column(Boolean, nullable=False, default=False)  # Enable auto-start on boot
     system_dependencies = Column(String, nullable=True)  # Comma-separated list of system packages (e.g., "ffmpeg,imagemagick")
+    python_version = Column(String, nullable=False, default="3.11")  # Selected Python version for Docker base image
     
     # Container information (container_id is the Docker internal ID, project.id is the container name)
     container_id = Column(String, nullable=True)  # Docker container ID (if deployed)
@@ -204,6 +205,7 @@ class Project(Base):
             "startup_file": self.startup_file,
             "auto_start": self.auto_start,
             "system_dependencies": self.system_dependencies,
+            "python_version": self.python_version,
             "container_id": self.container_id,
             "errors_silenced": self.errors_silenced,
             "last_error_acknowledged_at": serialize_datetime(self.last_error_acknowledged_at),

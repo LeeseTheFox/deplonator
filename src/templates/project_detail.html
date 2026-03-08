@@ -209,10 +209,10 @@
                 <div class="form-group">
                     <label for="startup-file" class="form-label">Startup file</label>
                     <select id="startup-file" class="form-select" onchange="saveConfiguration()">
-                        <option value="">Select startup file...</option>
+                        <option value="">Select Python startup file...</option>
                     </select>
                     <div class="text-small text-muted mt-1">
-                        Choose the main Python (.py) or shell script (.sh) file that starts your bot.
+                        Choose the main Python file that starts your bot.
                     </div>
                 </div>
 
@@ -239,28 +239,22 @@
                         <span class="text-success">✓ Configured: <strong id="configured-packages"></strong></span>
                     </div>
                 </div>
-
-                <div class="form-group">
-                    <label for="python-version" class="form-label">Python Version</label>
-                    <select id="python-version" class="form-select" onchange="saveConfiguration()">
-                        <option value="3.10">Python 3.10</option>
-                        <option value="3.11">Python 3.11</option>
-                        <option value="3.12">Python 3.12</option>
-                        <option value="3.13">Python 3.13</option>
-                        <option value="3.14">Python 3.14 (Latest)</option>
-                    </select>
-                    <div class="text-small text-muted mt-1">
-                        Choose the Python version for the project environment.
-                    </div>
-                </div>
             </form>
 
             <div class="mt-6 pt-4 border-t border-border">
-                <h4 class="text-xs font-medium text-muted uppercase tracking-wide mb-3">Maintenance tools</h4>
-                <div>
-                    <button type="button" class="btn btn-sm btn-secondary w-full justify-center"
-                        id="maintenance-menu-btn" onclick="openMaintenanceMenu()" style="display: none;">
-                        🛠️ Open maintenance menu
+                <h4 class="text-xs font-medium text-muted uppercase tracking-wide mb-3">Maintenance Tools</h4>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-secondary" id="maintenance-btn"
+                        onclick="startMaintenanceMode()" style="display: none;">
+                        Enter Maintenance
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" id="exit-maintenance-btn"
+                        onclick="exitMaintenanceMode()" style="display: none;">
+                        Exit Maintenance
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="copyDockerExecCommand()"
+                        id="copy-docker-cmd-btn">
+                        Copy Exec Cmd
                     </button>
                 </div>
             </div>
@@ -274,10 +268,6 @@
         <div class="flex items-center justify-between w-full">
             <h3 class="card-title">Files</h3>
             <div class="flex gap-2">
-                <a href="/api/projects/{{ project_id }}/download" class="btn btn-secondary btn-sm"
-                    title="Download Project as ZIP">
-                    ⬇️ Download
-                </a>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAllFolders()" id="toggle-all-btn">
                     📂 Expand all
                 </button>
@@ -400,47 +390,39 @@
     </div>
 </div>
 
-<!-- Maintenance mode menu modal -->
+<!-- Maintenance Mode Confirmation Modal -->
 <div id="maintenance-mode-modal" class="modal hidden">
     <div class="modal-overlay" onclick="hideMaintenanceModal()"></div>
     <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-header">
-            <h3 class="modal-title">Maintenance mode</h3>
+            <h3 class="modal-title">Start maintenance mode</h3>
             <button type="button" class="modal-close" onclick="hideMaintenanceModal()">&times;</button>
         </div>
 
         <div class="modal-body">
-            <!-- STATE: START (Default/Not in maintenance) -->
-            <div id="maintenance-state-start">
-                <div class="text-center mb-4">
-                    <div class="text-warning text-3xl mb-2">🛠️</div>
-                    <h4 class="font-medium mb-2">Start maintenance mode?</h4>
-                    <p class="text-muted mb-4">
-                        This will start a sleeping Docker container, allowing you to debug your project and run commands
-                        in its environment.<br>
-                        <strong>Your bot code will NOT be executed automatically.</strong>
-                    </p>
-                </div>
-            </div>
+            <div class="text-center mb-4">
+                <div class="text-warning text-3xl mb-2">🛠️</div>
+                <h4 class="font-medium mb-2">Start maintenance mode?</h4>
+                <p class="text-muted mb-4">
+                    This will stop the bot and start a sleeping container, allowing you to debug your project.<br>
+                    <strong>The project code will NOT be ran automatically.</strong>
+                </p>
 
-            <!-- STATE: ACTIVE (In maintenance) -->
-            <div id="maintenance-state-active" class="hidden">
-                <div class="text-center mb-4">
-                    <div class="text-success text-3xl mb-2">✅</div>
-                    <h4 class="font-medium mb-2">Maintenance mode active</h4>
-                    <p class="text-muted mb-4">
-                        The container is running in idle mode.
-                    </p>
+                <div class="alert alert-info text-left text-sm">
+                    <div class="flex gap-2">
+                        <div class="text-xl">💡</div>
+                        <div class="w-full">
+                            <strong>How to use:</strong><br>
+                            Start maintenance mode and run this command in your server terminal to access the container:
 
-                    <div class="alert alert-info text-left text-sm mb-4">
-                        <div class="font-medium mb-2">Access Container:</div>
-                        <div class="flex gap-2">
-                            <input type="text" id="maintenance-modal-command" class="form-input font-mono text-xs"
-                                readonly value="Loading..." onclick="this.select()">
-                            <button type="button" class="btn btn-secondary btn-sm"
-                                onclick="copyMaintenanceCommand(this)">
-                                📋
-                            </button>
+                            <div class="flex gap-2 mt-2">
+                                <input type="text" id="maintenance-modal-command" class="form-input font-mono text-xs"
+                                    readonly value="Loading..." onclick="this.select()">
+                                <button type="button" class="btn btn-secondary btn-sm"
+                                    onclick="copyMaintenanceCommand(this)">
+                                    📋
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -449,24 +431,12 @@
 
         <div class="modal-footer">
             <button type="button" class="btn btn-secondary" onclick="hideMaintenanceModal()">
-                Close
+                Cancel
             </button>
-
-            <!-- Footer controls for START state -->
-            <span id="maintenance-footer-start">
-                <button type="button" class="btn btn-warning" id="confirm-maintenance-btn"
-                    onclick="confirmStartMaintenance()">
-                    Start Maintenance
-                </button>
-            </span>
-
-            <!-- Footer controls for ACTIVE state -->
-            <span id="maintenance-footer-active" class="hidden">
-                <button type="button" class="btn btn-primary" id="confirm-exit-maintenance-btn"
-                    onclick="exitMaintenanceMode()">
-                    Exit maintenance mode
-                </button>
-            </span>
+            <button type="button" class="btn btn-warning" id="confirm-maintenance-btn"
+                onclick="confirmStartMaintenance()">
+                Start Maintenance
+            </button>
         </div>
     </div>
 </div>
@@ -477,7 +447,6 @@
     // Project detail page specific JavaScript
     let currentProjectId = '{{ project_id }}';
     let currentDeleteFilePath = null;
-    let currentProjectStatus = 'unknown';
     let statusRefreshInterval = null;
     let logsRefreshInterval = null;
     let autoRefreshEnabled = true;
@@ -485,9 +454,6 @@
     let filteredLogLines = [];
     let uptimeInterval = null;
     let containerStartTime = null;
-    let currentImageCreatedAt = null;
-    let currentContentUpdatedAt = null;
-    let expandedFolders = new Set(); // Track expanded folders for state preservation
 
     // Debounce mechanism to prevent rapid updates
     let updateDebounceTimer = null;
@@ -701,7 +667,6 @@
         statusRefreshInterval = setInterval(() => {
             if (!document.hidden) {
                 loadDeploymentStatus();
-                loadProjectFiles(true); // Auto-refresh files to update timestamps (silent mode)
             }
         }, 10000);
     }
@@ -778,7 +743,6 @@
 
         // Store current project name for rename feature
         currentProjectName = project.name;
-        currentProjectStatus = project.status; // Update global status
 
         // Prepare all new content
         const statusClass = `status ${BotDeployer.getStatusClass(project.status)}`;
@@ -808,21 +772,11 @@
             updateRenameButtonVisibility(project.status);
         });
 
-        // Store last content modification time for stale check
-        // If last_modification_at is available (added in recent update), use it.
-        // Otherwise fall back to updated_at (though this may cause false positives on status changes)
-        currentContentUpdatedAt = project.last_modification_at;
-
-        // Fetch container status if we have a container ID (even if stopped)
-        // This is needed to get image creation time for stale check
-        if (project.container_id) {
+        // Handle uptime counter based on status (async operation, separate from DOM updates)
+        if (project.status === 'running' || project.status === 'error') {
             fetchContainerStatus();
         } else {
-            // If no container, we can't be stale (or rather, we are not deployed)
-            currentImageCreatedAt = null;
             stopUptimeCounter();
-            // Re-evaluate buttons now that we know we don't have an image
-            updateDeploymentButtons(project.status);
         }
     }
 
@@ -835,14 +789,6 @@
             } else {
                 stopUptimeCounter();
             }
-
-            // Store image creation time
-            if (response.image_created_at) {
-                currentImageCreatedAt = response.image_created_at;
-                // Re-evaluate buttons to check for staleness
-                updateDeploymentButtons(currentProjectStatus);
-            }
-
         } catch (error) {
             console.error('Failed to fetch container status:', error);
             stopUptimeCounter();
@@ -850,13 +796,13 @@
     }
 
     function updateDeploymentButtons(status) {
-        currentProjectStatus = status;
         const deployBtn = document.getElementById('deploy-btn');
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
         const restartBtn = document.getElementById('restart-btn');
         const redeployBtn = document.getElementById('redeploy-btn');
-        const maintenanceMenuBtn = document.getElementById('maintenance-menu-btn');
+        const maintenanceBtn = document.getElementById('maintenance-btn');
+        const exitMaintenanceBtn = document.getElementById('exit-maintenance-btn');
 
         // Prepare all state changes first (no DOM writes yet)
         const buttonStates = {
@@ -865,18 +811,18 @@
             stop: { disabled: false },
             restart: { disabled: false },
             redeploy: { display: 'none' },
-            maintenanceMenu: { display: 'none' }
+            maintenance: { display: 'none' },
+            exitMaintenance: { display: 'none' }
         };
 
         switch (status) {
             case 'created':
-                buttonStates.deploy.disabled = false; // Can deploy from created
+                buttonStates.deploy.disabled = true;
                 buttonStates.start.disabled = true;
                 buttonStates.stop.disabled = true;
                 buttonStates.restart.disabled = true;
                 break;
             case 'configured':
-                buttonStates.deploy.disabled = false; // Can deploy from configured
                 buttonStates.start.disabled = true;
                 buttonStates.stop.disabled = true;
                 buttonStates.restart.disabled = true;
@@ -892,18 +838,18 @@
             case 'error':
                 buttonStates.deploy.display = 'none';
                 buttonStates.redeploy.display = 'block';
-                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.maintenance.display = 'block';
                 buttonStates.start.disabled = true;
                 break;
             case 'stopped':
                 buttonStates.deploy.display = 'none';
                 buttonStates.redeploy.display = 'block';
-                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.maintenance.display = 'block';
                 buttonStates.stop.disabled = true;
                 break;
             case 'failed':
                 buttonStates.deploy.text = '🔄 Retry Deploy';
-                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.maintenance.display = 'block';
                 buttonStates.start.disabled = true;
                 buttonStates.stop.disabled = true;
                 buttonStates.restart.disabled = true;
@@ -911,10 +857,8 @@
             case 'maintenance':
                 buttonStates.deploy.display = 'none';
                 buttonStates.redeploy.display = 'block';
-                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.exitMaintenance.display = 'block';
                 buttonStates.start.disabled = true;
-                buttonStates.stop.disabled = true;
-                buttonStates.restart.disabled = true;
                 break;
             default:
                 buttonStates.deploy.disabled = true;
@@ -926,21 +870,13 @@
 
         // Batch all DOM writes in a single operation
         // Reset all buttons first
-        const allButtons = [deployBtn, startBtn, stopBtn, restartBtn, redeployBtn];
+        const allButtons = [deployBtn, startBtn, stopBtn, restartBtn, redeployBtn, maintenanceBtn, exitMaintenanceBtn];
         allButtons.forEach(btn => {
             if (btn) {
                 btn.disabled = false;
-                btn.classList.remove('loading', 'btn-warning', 'btn-info', 'btn-primary', 'btn-success', 'btn-secondary');
-                btn.title = ''; // Clear any stale check tooltips
+                btn.classList.remove('loading');
             }
         });
-
-        // Restore original HTML classes
-        deployBtn.classList.add('btn-primary');
-        startBtn.classList.add('btn-success');
-        stopBtn.classList.add('btn-warning');
-        restartBtn.classList.add('btn-secondary');
-        redeployBtn.classList.add('btn-secondary');
 
         // Apply computed states
         deployBtn.disabled = buttonStates.deploy.disabled;
@@ -950,86 +886,20 @@
         startBtn.disabled = buttonStates.start.disabled;
         stopBtn.disabled = buttonStates.stop.disabled;
         restartBtn.disabled = buttonStates.restart.disabled;
-
-        // Reset default text/icons for buttons that might have been changed by stale checks
-        startBtn.innerHTML = '▶️ Start';
-        restartBtn.innerHTML = '🔄 Restart';
-        redeployBtn.innerHTML = '🔄 Redeploy';
         redeployBtn.style.display = buttonStates.redeploy.display;
 
-        if (maintenanceMenuBtn) {
-            maintenanceMenuBtn.disabled = false;
-            maintenanceMenuBtn.classList.remove('loading');
-            maintenanceMenuBtn.style.display = buttonStates.maintenanceMenu.display;
-        }
-
-        // STALE CHECK: Differentiate between File Changes (Restart) and Config Changes (Redeploy)
-
-        let needsRestart = false;
-        let needsRedeploy = false;
-
-        // Check 1: Configuration Changes (requires Redeploy)
-        if (currentProjectData && currentProjectData.last_config_change_at && currentImageCreatedAt) {
-            const configTime = new Date(currentProjectData.last_config_change_at);
-            const imageTime = new Date(currentImageCreatedAt);
-            // Buffer of 2 seconds
-            if (configTime.getTime() > imageTime.getTime() + 2000) {
-                needsRedeploy = true;
-            }
-        }
-
-        // Check 2: File Content Changes (requires Restart usually, or maybe nothing)
-        if (currentContentUpdatedAt && currentImageCreatedAt && !needsRedeploy) {
-            const contentTime = new Date(currentContentUpdatedAt);
-            const imageTime = new Date(currentImageCreatedAt);
-            if (contentTime.getTime() > imageTime.getTime() + 2000) {
-                needsRestart = true;
-            }
-        }
-
-        // Apply UI states based on checks
-
-        if (needsRedeploy) {
-            // Config changed: Strong warning to REDEPLOY
-            if (redeployBtn.style.display !== 'none') {
-                redeployBtn.innerHTML = '⚠️ Redeploy needed';
-                redeployBtn.classList.remove('btn-secondary');
-                redeployBtn.classList.add('btn-warning');
-                redeployBtn.title = 'Configuration has changed. You must redeploy to apply changes.';
-            }
-
-            // Disable Start button because running with old config is bad practice
-            if (!startBtn.disabled) {
-                startBtn.disabled = true;
-                startBtn.title = 'Configuration changed. Please redeploy.';
-            }
-            // Disable Restart button because restarting won't fix config mismatch
-            if (!restartBtn.disabled) {
-                restartBtn.disabled = true;
-                restartBtn.title = 'Configuration changed. Please redeploy.';
-            }
-
-        } else if (needsRestart) {
-            // Files changed: Prompt to RESTART
-            if (!restartBtn.disabled && redeployBtn.style.display !== 'block') {
-                restartBtn.title = 'File changes detected. Click to reload code.';
-                restartBtn.classList.add('btn-info'); // Info color for soft warning
-                if (!restartBtn.innerHTML.includes('↻')) {
-                    restartBtn.innerHTML = '↻ Restart';
-                }
-            }
-        }
+        maintenanceBtn.style.display = buttonStates.maintenance.display;
+        exitMaintenanceBtn.style.display = buttonStates.exitMaintenance.display;
     }
 
     function updateConfigurationForm(status) {
         const requirementsSelect = document.getElementById('requirements-path');
         const startupSelect = document.getElementById('startup-file');
         const systemDependenciesInput = document.getElementById('system-dependencies');
-        const pythonVersionSelect = document.getElementById('python-version');
         // Auto-start can be changed while running since it updates the container policy immediately
-        const configElements = [requirementsSelect, startupSelect, systemDependenciesInput, pythonVersionSelect];
+        const configElements = [requirementsSelect, startupSelect, systemDependenciesInput];
 
-        const isRunning = status === 'running' || status === 'error' || status === 'maintenance';
+        const isRunning = status === 'running' || status === 'error';
 
         // Disable/enable configuration form based on bot status
         // Auto-start checkbox is always enabled since it doesn't require redeploy
@@ -1050,7 +920,7 @@
                     notice = document.createElement('div');
                     notice.id = 'config-disabled-notice';
                     notice.className = 'alert alert-info mt-4';
-                    notice.innerHTML = '⚠️ Some settings are locked while the bot is running or in maintenance mode.';
+                    notice.innerHTML = '⚠️ Some settings are locked while the bot is running.';
                     configForm.appendChild(notice);
                 }
             } else {
@@ -1105,10 +975,7 @@
 
             BotDeployer.showAlert('Deployed successfully!', 'success');
 
-            BotDeployer.showAlert('Deployed successfully!', 'success');
-
-            // Reload EVERYTHING to ensure timestamps are fresh
-            await loadProjectDetails();
+            // Update the status immediately after successful deployment
             await loadDeploymentStatus();
 
             // Hide progress after a delay
@@ -1325,10 +1192,7 @@
 
             BotDeployer.showAlert('Redeployed successfully!', 'success');
 
-            BotDeployer.showAlert('Redeployed successfully!', 'success');
-
-            // Reload EVERYTHING to ensure timestamps are fresh
-            await loadProjectDetails();
+            // Update the status immediately after successful redeploy
             await loadDeploymentStatus();
 
             // Hide progress after a delay
@@ -1359,9 +1223,6 @@
             }, 3000);
         } finally {
             redeployBtn.disabled = false;
-            redeployBtn.disabled = false;
-            // The text will be reset by updateDeploymentButtons calling after loadProjectDetails/loadDeploymentStatus
-            // But we set it here as a fallback
             redeployBtn.textContent = '🔄 Redeploy';
         }
     }
@@ -1704,7 +1565,6 @@
             document.getElementById('startup-file').value = response.startup_file || '';
             document.getElementById('auto-start').checked = response.auto_start || false;
             document.getElementById('system-dependencies').value = response.system_dependencies || '';
-            document.getElementById('python-version').value = response.python_version || '3.11';
 
             // Update system dependencies status indicator
             updateSystemDepsStatus(response.system_dependencies);
@@ -1752,8 +1612,7 @@
                 requirements_path: document.getElementById('requirements-path').value || null,
                 startup_file: document.getElementById('startup-file').value || null,
                 auto_start: document.getElementById('auto-start').checked,
-                system_dependencies: document.getElementById('system-dependencies').value || null,
-                python_version: document.getElementById('python-version').value || '3.11'
+                system_dependencies: document.getElementById('system-dependencies').value || null
             };
 
             await BotDeployer.apiCall(`/projects/${currentProjectId}/config`, {
@@ -1795,8 +1654,7 @@
                 requirements_path: document.getElementById('requirements-path').value || null,
                 startup_file: document.getElementById('startup-file').value || null,
                 auto_start: document.getElementById('auto-start').checked,
-                system_dependencies: document.getElementById('system-dependencies').value || null,
-                python_version: document.getElementById('python-version').value || '3.11'
+                system_dependencies: document.getElementById('system-dependencies').value || null
             };
 
             await BotDeployer.apiCall(`/projects/${currentProjectId}/config`, {
@@ -1829,7 +1687,7 @@
 
         // Clear existing options (except the first placeholder option)
         requirementsSelect.innerHTML = '<option value="">Select requirements.txt file...</option>';
-        startupSelect.innerHTML = '<option value="">Select startup file...</option>';
+        startupSelect.innerHTML = '<option value="">Select Python startup file...</option>';
 
         // Recursively collect all files
         const allFiles = [];
@@ -1890,33 +1748,14 @@
             requirementsSelect.appendChild(option);
         });
 
-        // Populate startup file selector with .py and .sh files
+        // Populate startup file selector with .py files
         const pyFiles = allFiles.filter(file => file.name.toLowerCase().endsWith('.py'));
-        const shFiles = allFiles.filter(file => file.name.toLowerCase().endsWith('.sh'));
 
         pyFiles.forEach(file => {
             const option = document.createElement('option');
             option.value = file.path;
             // Display path with visual indication if it contains spaces
             const displayText = file.path.includes(' ') ? `🐍 ${file.path}` : file.path;
-            option.textContent = displayText;
-            option.title = `Full path: ${file.path}${file.path.includes(' ') ? ' (contains spaces - fully supported)' : ''}`;
-            startupSelect.appendChild(option);
-        });
-
-        // Add shell script files with a separator if we have both types
-        if (shFiles.length > 0 && pyFiles.length > 0) {
-            const separator = document.createElement('option');
-            separator.disabled = true;
-            separator.textContent = '── Shell scripts (.sh) ──';
-            startupSelect.appendChild(separator);
-        }
-
-        shFiles.forEach(file => {
-            const option = document.createElement('option');
-            option.value = file.path;
-            // Display path with shell script icon
-            const displayText = file.path.includes(' ') ? `📜 ${file.path}` : file.path;
             option.textContent = displayText;
             option.title = `Full path: ${file.path}${file.path.includes(' ') ? ' (contains spaces - fully supported)' : ''}`;
             startupSelect.appendChild(option);
@@ -1932,9 +1771,6 @@
 
             // Store current project name for rename feature
             currentProjectName = response.name;
-            currentProjectStatus = response.status; // Update global status
-            currentProjectData = response; // Store full data for logic checks
-
 
             document.getElementById('project-name').textContent = response.name;
             document.getElementById('project-info').innerHTML = `
@@ -1963,48 +1799,29 @@
         }
     }
 
-    async function loadProjectFiles(isAutoRefresh = false) {
+    async function loadProjectFiles() {
         try {
             const container = document.getElementById('file-tree-container');
+            container.innerHTML = `
+            <div class="loading-indicator text-center">
+                <div class="spinner"></div>
+                <span class="ml-2">Loading files...</span>
+            </div>
+        `;
 
-            // Only show spinner if not auto-refreshing
-            // AND stabilize height to prevent jumping
-            if (!isAutoRefresh) {
-                // Lock height to current height
-                if (container.offsetHeight > 0) {
-                    container.style.minHeight = `${container.offsetHeight}px`;
-                }
-
-                container.innerHTML = `
-                <div class="loading-indicator text-center">
-                    <div class="spinner"></div>
-                    <span class="ml-2">Loading files...</span>
-                </div>
-            `;
-            }
-
-            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/files?t=${Date.now()}`);
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/files`);
             displayFileTree(response.files);
-
-            // Unlock height after rendering
-            if (!isAutoRefresh) {
-                container.style.minHeight = '';
-            }
 
         } catch (error) {
             console.error('Failed to load files:', error);
-            // Only show error UI if not auto-refreshing or if container is empty
             const container = document.getElementById('file-tree-container');
-            if (!isAutoRefresh || container.innerHTML.trim() === '') {
-                container.innerHTML = `
-                <div class="text-center text-muted">
-                    <div class="text-3xl mb-4">📂</div>
-                    <h4>No files uploaded yet</h4>
-                    <p>Upload some files to get started with your bot project.</p>
-                </div>
-            `;
-                container.style.minHeight = '';
-            }
+            container.innerHTML = `
+            <div class="text-center text-muted">
+                <div class="text-3xl mb-4">📂</div>
+                <h4>No files uploaded yet</h4>
+                <p>Upload some files to get started with your bot project.</p>
+            </div>
+        `;
         }
     }
 
@@ -2048,18 +1865,12 @@
         const jsEscapedPath = file.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
         const jsEscapedName = file.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
 
-        // Check if folder is expanded
-        const isExpanded = file.is_directory && expandedFolders.has(folderId);
-        const arrowChar = isExpanded ? '▼' : '▶';
-        const displayStyle = isExpanded ? 'block' : 'none';
-        const expandTitle = isExpanded ? 'Collapse folder' : 'Expand folder';
-
         let html = `
         <div class="file-item" style="padding-left: ${indent + 24}px">
             <div class="file-info">
                 ${file.is_directory && file.children && file.children.length > 0 ?
-                `<button class="folder-toggle" onclick="toggleFolder('${folderId}')" title="${expandTitle}">
-                        <span class="folder-arrow" id="arrow-${folderId}">${arrowChar}</span>
+                `<button class="folder-toggle" onclick="toggleFolder('${folderId}')" title="Expand/Collapse folder">
+                        <span class="folder-arrow" id="arrow-${folderId}">▶</span>
                     </button>` :
                 '<span class="folder-spacer"></span>'
             }
@@ -2078,7 +1889,7 @@
 
         // Add children if it's a directory
         if (file.is_directory && file.children && file.children.length > 0) {
-            html += `<div class="folder-contents" id="${folderId}" style="display: ${displayStyle};">`;
+            html += `<div class="folder-contents" id="${folderId}" style="display: none;">`;
             html += file.children.map(child => renderFileItem(child, depth + 1)).join('');
             html += '</div>';
         }
@@ -2095,12 +1906,10 @@
                 folderContents.style.display = 'block';
                 arrow.textContent = '▼';
                 arrow.parentElement.title = 'Collapse folder';
-                expandedFolders.add(folderId);
             } else {
                 folderContents.style.display = 'none';
                 arrow.textContent = '▶';
                 arrow.parentElement.title = 'Expand folder';
-                expandedFolders.delete(folderId);
             }
         }
     }
@@ -2123,13 +1932,9 @@
                 arrow.parentElement.title = 'Expand folder';
             });
             toggleBtn.innerHTML = '📂 Expand all';
-            expandedFolders.clear();
         } else {
             // Expand all
-            allFolderContents.forEach(folder => {
-                folder.style.display = 'block';
-                expandedFolders.add(folder.id);
-            });
+            allFolderContents.forEach(folder => folder.style.display = 'block');
             allArrows.forEach(arrow => {
                 arrow.textContent = '▼';
                 arrow.parentElement.title = 'Collapse folder';
@@ -2167,7 +1972,7 @@
             'error': 'Error',
             'stopped': 'Stopped',
             'failed': 'Failed',
-            'maintenance': 'Maintenance'
+            'maintenance': '🛠️ Maintenance'
         };
         return statusMap[status] || status;
     }
@@ -2609,7 +2414,6 @@
         if (event.key === 'Escape') {
             hideDeleteFileModal();
             hideRenameModal();
-            hideMaintenanceModal();
         }
 
         // Ctrl+U or Cmd+U opens file upload
@@ -2628,36 +2432,10 @@
         }
     });
 
-    function openMaintenanceMenu() {
+    function showMaintenanceModal() {
         const modal = document.getElementById('maintenance-mode-modal');
-        const startState = document.getElementById('maintenance-state-start');
-        const activeState = document.getElementById('maintenance-state-active');
-        const footerStartState = document.getElementById('maintenance-footer-start');
-        const footerActiveState = document.getElementById('maintenance-footer-active');
+        if (modal) modal.classList.remove('hidden');
 
-        if (!modal) return;
-
-        // Toggle view based on current status
-        const isMaintenance = currentProjectStatus === 'maintenance';
-
-        if (isMaintenance) {
-            startState.classList.add('hidden');
-            footerStartState.classList.add('hidden');
-            activeState.classList.remove('hidden');
-            footerActiveState.classList.remove('hidden');
-            // Fetch command if we are in active state
-            fetchMaintenanceCommand();
-        } else {
-            startState.classList.remove('hidden');
-            footerStartState.classList.remove('hidden');
-            activeState.classList.add('hidden');
-            footerActiveState.classList.add('hidden');
-        }
-
-        modal.classList.remove('hidden');
-    }
-
-    function fetchMaintenanceCommand() {
         // Fetch the command to display
         const input = document.getElementById('maintenance-modal-command');
         if (input) {
@@ -2677,23 +2455,16 @@
         const modal = document.getElementById('maintenance-mode-modal');
         if (modal) modal.classList.add('hidden');
 
-        // Reset button states
-        const startBtn = document.getElementById('confirm-maintenance-btn');
-        if (startBtn) {
-            startBtn.disabled = false;
-            startBtn.innerHTML = 'Start maintenance mode';
-        }
-
-        const exitBtn = document.getElementById('confirm-exit-maintenance-btn');
-        if (exitBtn) {
-            exitBtn.disabled = false;
-            exitBtn.innerHTML = 'Exit maintenance mode';
+        // Reset button state just in case
+        const btn = document.getElementById('confirm-maintenance-btn');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'Start Maintenance';
         }
     }
 
-    // Legacy function support redirected to new menu
     function startMaintenanceMode() {
-        openMaintenanceMenu();
+        showMaintenanceModal();
     }
 
     async function confirmStartMaintenance() {
@@ -2708,11 +2479,9 @@
             });
 
             BotDeployer.showAlert('Maintenance mode started', 'success');
-            // Don't hide modal, instead switch view to active state
-            currentProjectStatus = 'maintenance'; // Optimistic update
-            openMaintenanceMenu();
+            hideMaintenanceModal();
 
-            // Refresh real status
+            // Refresh status immediately
             loadDeploymentStatus();
 
         } catch (error) {
@@ -2754,30 +2523,22 @@
     }
 
     async function exitMaintenanceMode() {
-        const btn = document.getElementById('confirm-exit-maintenance-btn');
+        const btn = document.getElementById('exit-maintenance-btn');
         try {
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '⏳ Exiting...';
-            }
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Exiting...';
 
             await BotDeployer.apiCall(`/projects/${currentProjectId}/maintenance/exit`, {
                 method: 'POST'
             });
             BotDeployer.showAlert('Exited maintenance mode', 'success');
-
-            // Close the menu/modal
-            hideMaintenanceModal();
-
-            // Refresh status
+            // Refresh status immediately
             loadDeploymentStatus();
         } catch (error) {
             console.error('Failed to exit maintenance mode:', error);
             BotDeployer.showAlert('Failed to exit maintenance mode: ' + error.message, 'error');
-            if (btn) {
-                btn.innerHTML = 'Exit maintenance mode';
-                btn.disabled = false;
-            }
+            btn.innerHTML = 'Exit Maintenance';
+            btn.disabled = false;
         }
     }
 

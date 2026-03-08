@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Deplonator{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
+    
+    <!-- Additional CSS -->
+    {% block extra_css %}{% endblock %}
+    
+    <!-- Meta tags for SEO and social sharing -->
+    <meta name="description" content="Web-based deployment panel for managing multiple Telegram bots with Docker containers">
+    <meta name="author" content="Deplonator">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}Deplonator{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Deploy and manage multiple Telegram bots with ease{% endblock %}">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary">
+    <meta property="twitter:title" content="{% block twitter_title %}Deplonator{% endblock %}">
+    <meta property="twitter:description" content="{% block twitter_description %}Deploy and manage multiple Telegram bots with ease{% endblock %}">
+</head>
+<body>
+    <!-- Header with Navigation -->
+    <header class="header">
+        <div class="nav-container">
+            <a href="/" class="logo">
+                🤖 Deplonator
+            </a>
+            
+            <nav>
+                <ul class="nav-menu">
+                    <li><a href="/" class="nav-link" data-page="dashboard">Dashboard</a></li>
+                    <li><a href="/projects" class="nav-link" data-page="projects">Projects</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-container">
+        <!-- Page Header -->
+        {% block page_header %}
+        <div class="page-header">
+            <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+            <p class="page-subtitle">{% block page_subtitle %}Manage your Telegram bot deployments{% endblock %}</p>
+        </div>
+        {% endblock %}
+
+        <!-- Page Content -->
+        <div class="page-content">
+            {% block content %}
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Welcome to Deplonator</h2>
+                </div>
+                <p>This is the base template. Override the content block to add your page content.</p>
+            </div>
+            {% endblock %}
+        </div>
+    </main>
+
+    <!-- Floating Alert Messages -->
+    <div id="alert-container" class="floating-alerts">
+        {% block alerts %}{% endblock %}
+    </div>
+
+    <!-- Modal Container (outside main-container to ensure proper fixed positioning) -->
+    <div id="modal-container">
+        {% block modals %}{% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        {% block footer %}
+        <div class="nav-container">
+            <div class="text-center text-muted text-small">
+                <p> Deplonator made by 🦊 Leese</p>
+                <p class="mt-1">
+                    <a href="/health" class="text-muted">Health check</a> | 
+                    <a href="/docs" class="text-muted">API documentation</a>
+                </p>
+            </div>
+        </div>
+        {% endblock %}
+    </footer>
+
+    <!-- Core JavaScript -->
+    <script src="/static/js/app.js?v=5"></script>
+    
+    <!-- Additional JavaScript -->
+    {% block extra_js %}{% endblock %}
+
+    <!-- Inline JavaScript -->
+    {% block inline_js %}{% endblock %}
+</body>
+</html>

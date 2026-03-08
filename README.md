@@ -54,3 +54,9 @@ To pull the latest changes and rebuild:
 git pull
 docker compose up -d --build
 ```
+
+If a database schema change was introduced, you must apply the migrations to your database after the container has been built and restarted:
+
+```bash
+docker exec -it telegram-bot-deployer alembic upgrade head
+```
