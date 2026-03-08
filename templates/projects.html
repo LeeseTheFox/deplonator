@@ -1,0 +1,829 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - Deplonator{% endblock %}
+
+{% block page_title %}Projects{% endblock %}
+{% block page_subtitle %}Manage your Telegram bot projects{% endblock %}
+
+{% block content %}
+<!-- Quick Stats -->
+<div class="grid grid-2 mb-4">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Total projects</h3>
+        </div>
+        <div class="text-center">
+            <div class="text-3xl font-bold text-primary" id="total-projects">-</div>
+            <div class="text-muted text-small">Projects created</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Running bots</h3>
+        </div>
+        <div class="text-center">
+            <div class="text-3xl font-bold text-success" id="running-bots">-</div>
+            <div class="text-muted text-small">Currently active</div>
+        </div>
+    </div>
+</div>
+
+<!-- Project Actions Bar -->
+<div class="flex gap-4 mb-4 items-center">
+    <button type="button" class="btn btn-primary" onclick="showCreateProjectModal()">
+        ✚ Create new project
+    </button>
+    <button type="button" class="btn btn-secondary" onclick="refreshProjects()">
+        🔄 Refresh
+    </button>
+
+    <!-- Sort Dropdown -->
+    <div class="flex items-center gap-2 ml-auto">
+        <label for="sort-select" class="text-small text-muted">Sort by:</label>
+        <select id="sort-select" class="form-select compact" onchange="handleSortChange()">
+            <option value="status">Status (running first)</option>
+            <option value="date_newest">Date added (newest first)</option>
+            <option value="date_oldest">Date added (oldest first)</option>
+            <option value="name">Name (A-Z)</option>
+        </select>
+    </div>
+</div>
+
+<!-- Projects Grid -->
+<div id="projects-container">
+    <div class="loading-indicator text-center">
+        <div class="spinner"></div>
+        <span class="ml-2">Loading projects...</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Create Project Modal -->
+<div id="create-project-modal" class="modal hidden">
+    <div class="modal-overlay" onclick="hideCreateProjectModal()"></div>
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title">Create new project</h3>
+            <button type="button" class="modal-close" onclick="hideCreateProjectModal()">&times;</button>
+        </div>
+
+        <form id="create-project-form" data-api="/projects" data-method="POST">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="project-name" class="form-label">Project name</label>
+                    <input type="text" id="project-name" name="name" class="form-input"
+                        placeholder="Enter project name (e.g., My Telegram Bot)" required maxlength="50"
+                        oninput="validateProjectNameInput(this, this.value.trim())">
+                    <div class="text-small text-muted mt-1">
+                        Choose a descriptive name for your bot project (1-50 characters). Supports Unicode, emojis, and
+                        spaces.
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideCreateProjectModal()">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Create project
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-project-modal" class="modal hidden">
+    <div class="modal-overlay" onclick="hideDeleteProjectModal()"></div>
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title">Delete project</h3>
+            <button type="button" class="modal-close" onclick="hideDeleteProjectModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+            <div class="text-center mb-4">
+                <div class="text-danger text-3xl mb-2">⚠️</div>
+                <h4>Are you sure you want to delete this project?</h4>
+                <p class="text-muted mt-2">
+                    This will permanently delete the project "<strong id="delete-project-name"></strong>"
+                    and all its files. This action cannot be undone.
+                </p>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="hideDeleteProjectModal()">
+                Cancel
+            </button>
+            <button type="button" class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDeleteProject()">
+                Delete project
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Projects page specific JavaScript
+    let currentDeleteProjectId = null;
+    let projectUptimeIntervals = {}; // Store uptime intervals for each project
+
+    // Uptime calculation functions
+    function formatUptime(startTime) {
+        if (!startTime) return '--';
+
+        const now = new Date();
+        const start = new Date(startTime);
+        const diffMs = now - start;
+
+        if (diffMs < 0) return '--';
+
+        const seconds = Math.floor(diffMs / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        const months = Math.floor(days / 30);
+        const years = Math.floor(days / 365);
+
+        if (years > 0) {
+            const remainingMonths = Math.floor((days % 365) / 30);
+            return remainingMonths > 0 ? `${years}y ${remainingMonths}mo` : `${years}y`;
+        } else if (months > 0) {
+            const remainingDays = days % 30;
+            return remainingDays > 0 ? `${months}mo ${remainingDays}d` : `${months}mo`;
+        } else if (days > 0) {
+            const remainingHours = hours % 24;
+            return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+        } else if (hours > 0) {
+            const remainingMinutes = minutes % 60;
+            return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+        } else if (minutes > 0) {
+            const remainingSeconds = seconds % 60;
+            return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+        } else {
+            return `${seconds}s`;
+        }
+    }
+
+    function updateProjectUptime(projectId, startTime) {
+        const uptimeElement = document.getElementById(`uptime-${projectId}`);
+        if (!uptimeElement) return;
+
+        const uptimeText = uptimeElement.querySelector('.uptime-text');
+        if (uptimeText) {
+            uptimeText.textContent = formatUptime(startTime);
+        }
+    }
+
+    function startProjectUptimeCounter(projectId, startTime) {
+        // Clear existing interval if any
+        if (projectUptimeIntervals[projectId]) {
+            clearInterval(projectUptimeIntervals[projectId]);
+        }
+
+        const uptimeElement = document.getElementById(`uptime-${projectId}`);
+        if (!uptimeElement) return;
+
+        // Show the uptime counter
+        uptimeElement.style.display = 'block';
+
+        // Update immediately
+        updateProjectUptime(projectId, startTime);
+
+        // Update every second
+        projectUptimeIntervals[projectId] = setInterval(() => {
+            updateProjectUptime(projectId, startTime);
+        }, 1000);
+    }
+
+    function stopProjectUptimeCounter(projectId) {
+        if (projectUptimeIntervals[projectId]) {
+            clearInterval(projectUptimeIntervals[projectId]);
+            delete projectUptimeIntervals[projectId];
+        }
+
+        const uptimeElement = document.getElementById(`uptime-${projectId}`);
+        if (uptimeElement) {
+            uptimeElement.style.display = 'none';
+        }
+    }
+
+    async function fetchProjectUptime(projectId) {
+        try {
+            const response = await BotDeployer.apiCall(`/projects/${projectId}/status`);
+
+            if (response.is_running && response.started_at) {
+                startProjectUptimeCounter(projectId, response.started_at);
+            } else {
+                stopProjectUptimeCounter(projectId);
+            }
+        } catch (error) {
+            console.error(`Failed to fetch uptime for project ${projectId}:`, error);
+            stopProjectUptimeCounter(projectId);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize sort dropdown with saved preference first
+        const savedSort = initializeSortDropdown();
+
+        // Override the updateProjectsDisplay method for projects page
+        BotDeployer.updateProjectsDisplay = function () {
+            updateProjectsGrid();
+        };
+
+        // Load projects with the saved sort preference
+        BotDeployer.loadProjects(savedSort);
+
+        // Refresh projects when navigating back to this page (e.g., using browser back button or tab navigation)
+        window.addEventListener('pageshow', function (event) {
+            // event.persisted is true when page is loaded from bfcache (back/forward cache)
+            if (event.persisted) {
+                const sortSelect = document.getElementById('sort-select');
+                const currentSort = sortSelect ? sortSelect.value : (localStorage.getItem('projectSortBy') || 'status');
+                BotDeployer.loadProjects(currentSort);
+            }
+        });
+
+        // Also refresh when page becomes visible again (e.g., switching browser tabs)
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && BotDeployer.state.currentPage === 'projects') {
+                const sortSelect = document.getElementById('sort-select');
+                const currentSort = sortSelect ? sortSelect.value : (localStorage.getItem('projectSortBy') || 'status');
+                BotDeployer.loadProjects(currentSort);
+            } else if (document.hidden) {
+                // Clear uptime intervals when page is hidden to save resources
+                Object.keys(projectUptimeIntervals).forEach(projectId => {
+                    stopProjectUptimeCounter(projectId);
+                });
+            }
+        });
+
+        // Clean up uptime intervals when page is unloaded
+        window.addEventListener('beforeunload', function () {
+            Object.keys(projectUptimeIntervals).forEach(projectId => {
+                stopProjectUptimeCounter(projectId);
+            });
+        });
+
+        // Setup project name input validation
+        const projectNameInput = document.getElementById('project-name');
+        if (projectNameInput) {
+            // Trim whitespace when user leaves the input field
+            projectNameInput.addEventListener('blur', function () {
+                const trimmedValue = this.value.trim();
+                if (this.value !== trimmedValue) {
+                    this.value = trimmedValue;
+                    validateProjectNameInput(this, trimmedValue);
+                }
+            });
+
+            // Validate on input for real-time feedback
+            projectNameInput.addEventListener('input', function () {
+                validateProjectNameInput(this, this.value.trim());
+            });
+        }
+
+        // Handle form success for project creation
+        const createForm = document.getElementById('create-project-form');
+        if (createForm) {
+            // Add form validation before submission
+            createForm.addEventListener('submit', function (event) {
+                const nameInput = document.getElementById('project-name');
+                const trimmedName = nameInput.value.trim();
+
+                // Update input with trimmed value
+                nameInput.value = trimmedName;
+
+                // Validate the trimmed name
+                const isValid = validateProjectNameInput(nameInput, trimmedName);
+
+                if (!isValid) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    // Focus on the invalid input
+                    nameInput.focus();
+
+                    // Show a user-friendly alert
+                    BotDeployer.showAlert('Please fix the validation errors before submitting', 'error');
+                    return false;
+                }
+
+                // Additional check to prevent empty submissions
+                if (!trimmedName || trimmedName.length === 0) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    nameInput.focus();
+                    BotDeployer.showAlert('Project name is required', 'error');
+                    return false;
+                }
+            });
+
+            createForm.addEventListener('formSuccess', function (event) {
+                hideCreateProjectModal();
+                // Use current sort selection when refreshing after creation
+                const sortSelect = document.getElementById('sort-select');
+                const currentSort = sortSelect ? sortSelect.value : 'status';
+                BotDeployer.loadProjects(currentSort);
+                BotDeployer.showAlert('Created successfully!', 'success');
+            });
+        }
+
+        // Handle project action buttons with uptime refresh
+        document.addEventListener('click', async function (event) {
+            const button = event.target.closest('button[data-action]');
+            if (!button) return;
+
+            const action = button.getAttribute('data-action');
+            const projectId = button.getAttribute('data-project-id');
+
+            // Store original button content
+            const originalContent = button.innerHTML;
+            const originalDisabled = button.disabled;
+
+            try {
+                // Show loading state on the button
+                button.disabled = true;
+                button.innerHTML = '⏳ ' + button.textContent.replace(/^[^\s]+\s/, '');
+
+                // Perform the action
+                switch (action) {
+                    case 'deploy':
+                        await BotDeployer.deployProject(projectId);
+                        break;
+                    case 'start':
+                        await BotDeployer.startProject(projectId);
+                        // Start fetching uptime after starting
+                        setTimeout(() => fetchProjectUptime(projectId), 2000);
+                        break;
+                    case 'stop':
+                        await BotDeployer.stopProject(projectId);
+                        // Stop uptime counter immediately
+                        stopProjectUptimeCounter(projectId);
+                        break;
+                    case 'restart':
+                        // Show immediate feedback that restart is starting
+                        BotDeployer.showAlert('Restarting...', 'info');
+
+                        // Call API to restart
+                        await BotDeployer.apiCall(`/projects/${projectId}/restart`, { method: 'POST' });
+
+                        // Refresh project list to show updated status
+                        await BotDeployer.loadProjects();
+
+                        // Stop current uptime counter immediately
+                        stopProjectUptimeCounter(projectId);
+
+                        // Poll for restart completion
+                        let restartComplete = false;
+                        let attempts = 0;
+                        const maxAttempts = 30; // 30 seconds max wait
+
+                        while (!restartComplete && attempts < maxAttempts) {
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                            attempts++;
+
+                            try {
+                                const status = await BotDeployer.apiCall(`/projects/${projectId}/status`);
+                                if (status.is_running && status.started_at) {
+                                    // Container is running with a new start time
+                                    restartComplete = true;
+                                    BotDeployer.showAlert('Restarted successfully', 'success');
+                                    // Start uptime counter with new start time
+                                    fetchProjectUptime(projectId);
+                                    // Refresh project list one more time to show final status
+                                    await BotDeployer.loadProjects();
+                                }
+                            } catch (error) {
+                                console.error('Error checking restart status:', error);
+                                break;
+                            }
+                        }
+
+                        if (!restartComplete) {
+                            BotDeployer.showAlert('Restart may have failed - please check status', 'warning');
+                        }
+                        break;
+                    case 'redeploy':
+                        await BotDeployer.apiCall(`/projects/${projectId}/redeploy`, { method: 'POST' });
+                        BotDeployer.showAlert('Redeploying...', 'success');
+                        await BotDeployer.loadProjects();
+                        break;
+                    default:
+                        console.warn('Unknown action:', action);
+                }
+            } catch (error) {
+                console.error(`Action ${action} failed:`, error);
+                BotDeployer.showAlert(error.message, 'error');
+            } finally {
+                // Restore button state
+                button.disabled = originalDisabled;
+                button.innerHTML = originalContent;
+            }
+        });
+
+        // Start auto-refresh for projects page (disabled to prevent page jumping)
+        // BotDeployer.startAutoRefresh();
+    });
+
+    function updateProjectsGrid() {
+        const projects = BotDeployer.state.projects;
+        const container = document.getElementById('projects-container');
+
+        // Update dashboard stats
+        updateDashboardStats();
+
+        // Add updating class for smooth transition
+        container.classList.add('updating');
+
+        if (projects.length === 0) {
+            container.innerHTML = `
+            <div class="card text-center">
+                <div class="text-muted">
+                    <div class="text-3xl mb-4">📦</div>
+                    <h3>No projects yet</h3>
+                    <p class="mb-4">Create your first Telegram bot project to get started.</p>
+                    <button type="button" class="btn btn-primary" onclick="showCreateProjectModal()">
+                        Create your first project
+                    </button>
+                </div>
+            </div>
+        `;
+        } else {
+            // Use projects as-is since they're already sorted by the backend
+            container.innerHTML = `
+            <div class="projects-grid">
+                ${projects.map(project => createProjectCard(project)).join('')}
+            </div>
+        `;
+
+            // Start uptime counters for running projects
+            projects.forEach(project => {
+                if (project.status === 'running' || project.status === 'error') {
+                    fetchProjectUptime(project.id);
+                }
+            });
+        }
+
+        // Remove updating class after a brief delay to show the transition
+        setTimeout(() => {
+            container.classList.remove('updating');
+        }, 100);
+    }
+
+    function updateDashboardStats() {
+        const projects = BotDeployer.state.projects;
+
+        // Update total projects
+        const totalProjectsElement = document.getElementById('total-projects');
+        if (totalProjectsElement) {
+            totalProjectsElement.textContent = projects.length;
+        }
+
+        // Count running bots
+        const runningBots = projects.filter(p => p.status === 'running').length;
+        const runningBotsElement = document.getElementById('running-bots');
+        if (runningBotsElement) {
+            runningBotsElement.textContent = runningBots;
+        }
+    }
+
+    function createProjectCard(project) {
+        const statusInfo = getStatusInfo(project.status);
+        const lastUpdated = BotDeployer.formatDate(project.updated_at);
+
+        // Show error message for failed deployments
+        const errorMessage = project.status === 'failed' && project.last_error_message
+            ? `<div class="project-error-message text-xs text-danger mt-1">${escapeHtml(project.last_error_message)}</div>`
+            : '';
+
+        return `
+        <div class="card project-card" data-project-id="${project.id}">
+            <div class="project-card-header">
+                <h3 class="project-card-title">${escapeHtml(project.name)}</h3>
+                <div class="status-container">
+                    ${project.status === 'running' || project.status === 'error' ? `
+                        <div class="uptime-counter text-xs text-muted" id="uptime-${project.id}" style="display: none;">
+                            <span class="uptime-text">--</span>
+                        </div>
+                    ` : ''}
+                    <div class="status ${BotDeployer.getStatusClass(project.status)}">
+                        <div class="status-dot"></div>
+                        ${statusInfo.label}
+                    </div>
+                </div>
+            </div>
+            ${errorMessage}
+            
+            <div class="project-meta">
+                <span class="text-small text-muted">Last modified ${lastUpdated}</span>
+                ${project.container_id ? `<span class="text-xs text-muted">Container: <code class="container-name-full">${project.id}</code></span>` : ''}
+            </div>
+            
+            <div class="project-actions">
+                <div class="flex gap-2 mb-2">
+                    ${getActionButtons(project)}
+                </div>
+                
+                <div class="flex gap-2">
+                    <a href="/projects/${project.id}" class="btn btn-sm btn-secondary flex-1">
+                        ⚙️ Manage
+                    </a>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="showDeleteProjectModal('${project.id}', '${escapeJsString(project.name)}')">
+                        ✕
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    }
+
+    function getStatusInfo(status) {
+        const statusMap = {
+            'created': { label: 'Created', description: 'Project created, needs configuration' },
+            'configured': { label: 'Configured', description: 'Ready to deploy' },
+            'deploying': { label: 'Deploying', description: 'Deployment in progress' },
+            'running': { label: 'Running', description: 'Bot is active' },
+            'error': { label: 'Error', description: 'Bot is running but errors detected' },
+            'stopped': { label: 'Stopped', description: 'Bot is stopped' },
+            'failed': { label: 'Failed', description: 'Deployment or runtime error' },
+            'maintenance': { label: 'Maintenance', description: 'Maintenance mode active' }
+        };
+
+        return statusMap[status] || { label: status, description: 'Unknown status' };
+    }
+
+    function getActionButtons(project) {
+        switch (project.status) {
+            case 'configured':
+                return `
+                <button class="btn btn-sm btn-primary flex-1" data-action="deploy" data-project-id="${project.id}">
+                    🚀 Deploy
+                </button>
+            `;
+
+            case 'running':
+            case 'maintenance':
+                return `
+                <button class="btn btn-sm btn-warning flex-1" data-action="stop" data-project-id="${project.id}">
+                    ⏹️ Stop
+                </button>
+                <button class="btn btn-sm btn-secondary flex-1" data-action="restart" data-project-id="${project.id}">
+                    🔄 Restart
+                </button>
+            `;
+
+            case 'error':
+                return `
+                <button class="btn btn-sm btn-warning flex-1" data-action="stop" data-project-id="${project.id}">
+                    ⏹️ Stop
+                </button>
+                <button class="btn btn-sm btn-secondary flex-1" data-action="restart" data-project-id="${project.id}">
+                    🔄 Restart
+                </button>
+            `;
+
+            case 'stopped':
+                return `
+                <button class="btn btn-sm btn-success flex-1" data-action="start" data-project-id="${project.id}">
+                    ▶️ Start
+                </button>
+                <button class="btn btn-sm btn-secondary flex-1" data-action="restart" data-project-id="${project.id}">
+                    🔄 Restart
+                </button>
+            `;
+
+            case 'failed':
+                return `
+                <button class="btn btn-sm btn-primary flex-1" data-action="redeploy" data-project-id="${project.id}">
+                    🔄 Retry
+                </button>
+            `;
+
+            case 'deploying':
+                return `
+                <button class="btn btn-sm btn-secondary flex-1" disabled>
+                    ⏳ Deploying...
+                </button>
+            `;
+
+            default:
+                return `
+                <div class="text-small text-muted flex-1 text-center">
+                    Configure project to deploy
+                </div>
+            `;
+        }
+    }
+
+    function validateProjectNameInput(input, trimmedValue) {
+        const errorElement = document.getElementById('project-name-error');
+
+        // Remove existing error element
+        if (errorElement) {
+            errorElement.remove();
+        }
+
+        // Check for validation errors
+        let errorMessage = '';
+
+        // Check if the original input has content but trimmed value is empty (spaces only)
+        if (input.value && !trimmedValue) {
+            errorMessage = 'Project name cannot be empty or contain only spaces';
+        }
+        // Check if trimmed value is empty
+        else if (!trimmedValue || trimmedValue.length === 0) {
+            errorMessage = 'Project name is required';
+        }
+        // Check length after trimming
+        else if (trimmedValue.length > 50) {
+            errorMessage = 'Project name cannot exceed 50 characters';
+        }
+
+        // Show error if any
+        if (errorMessage) {
+            const errorDiv = document.createElement('div');
+            errorDiv.id = 'project-name-error';
+            errorDiv.className = 'text-small text-danger mt-1';
+            errorDiv.textContent = errorMessage;
+
+            const inputGroup = input.closest('.form-group');
+            const helpText = inputGroup.querySelector('.text-muted');
+            if (helpText) {
+                helpText.parentNode.insertBefore(errorDiv, helpText.nextSibling);
+            } else {
+                inputGroup.appendChild(errorDiv);
+            }
+
+            input.classList.add('error');
+            return false;
+        } else {
+            input.classList.remove('error');
+            return true;
+        }
+    }
+
+    async function refreshProjects() {
+        const refreshBtn = document.querySelector('button[onclick="refreshProjects()"]');
+        const originalText = refreshBtn.innerHTML;
+
+        try {
+            // Update button to show loading state
+            refreshBtn.innerHTML = '⏳ Refreshing...';
+            refreshBtn.disabled = true;
+
+            // Clear all existing uptime intervals before refreshing
+            Object.keys(projectUptimeIntervals).forEach(projectId => {
+                stopProjectUptimeCounter(projectId);
+            });
+
+            // Use current sort selection when refreshing
+            const sortSelect = document.getElementById('sort-select');
+            const currentSort = sortSelect ? sortSelect.value : 'status';
+
+            await BotDeployer.loadProjects(currentSort);
+            BotDeployer.showAlert('Refreshed', 'success', 2000);
+
+        } catch (error) {
+            console.error('Refresh failed:', error);
+            BotDeployer.showAlert('Failed to refresh', 'error');
+        } finally {
+            // Restore button state
+            refreshBtn.innerHTML = originalText;
+            refreshBtn.disabled = false;
+        }
+    }
+
+    async function handleSortChange() {
+        const sortSelect = document.getElementById('sort-select');
+        const sortBy = sortSelect.value;
+
+        // Save sort preference to localStorage
+        localStorage.setItem('projectSortBy', sortBy);
+
+        try {
+            await BotDeployer.loadProjects(sortBy);
+        } catch (error) {
+            console.error('Sort failed:', error);
+            BotDeployer.showAlert('Failed to sort', 'error');
+        }
+    }
+
+    // Initialize sort dropdown with saved preference
+    function initializeSortDropdown() {
+        const sortSelect = document.getElementById('sort-select');
+        const savedSort = localStorage.getItem('projectSortBy') || 'status'; // Default to status sorting
+
+        if (sortSelect) {
+            sortSelect.value = savedSort;
+        }
+
+        return savedSort;
+    }
+
+
+
+    function showCreateProjectModal() {
+        // Reset form and clear validation state before showing
+        const form = document.getElementById('create-project-form');
+        const nameInput = document.getElementById('project-name');
+
+        form.reset();
+
+        // Clear any validation errors
+        const errorElement = document.getElementById('project-name-error');
+        if (errorElement) {
+            errorElement.remove();
+        }
+        nameInput.classList.remove('error');
+
+        document.getElementById('create-project-modal').classList.remove('hidden');
+        nameInput.focus();
+    }
+
+    function hideCreateProjectModal() {
+        const form = document.getElementById('create-project-form');
+        const nameInput = document.getElementById('project-name');
+
+        document.getElementById('create-project-modal').classList.add('hidden');
+        form.reset();
+
+        // Clear any validation errors
+        const errorElement = document.getElementById('project-name-error');
+        if (errorElement) {
+            errorElement.remove();
+        }
+        nameInput.classList.remove('error');
+    }
+
+    function showDeleteProjectModal(projectId, projectName) {
+        currentDeleteProjectId = projectId;
+        document.getElementById('delete-project-name').textContent = projectName;
+        document.getElementById('delete-project-modal').classList.remove('hidden');
+    }
+
+    function hideDeleteProjectModal() {
+        document.getElementById('delete-project-modal').classList.add('hidden');
+        currentDeleteProjectId = null;
+    }
+
+    async function confirmDeleteProject() {
+        if (!currentDeleteProjectId) return;
+
+        try {
+            const deleteBtn = document.getElementById('confirm-delete-btn');
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = 'Deleting...';
+
+            await BotDeployer.deleteProject(currentDeleteProjectId);
+            hideDeleteProjectModal();
+
+        } catch (error) {
+            console.error('Delete failed:', error);
+            BotDeployer.showAlert('Failed to delete: ' + error.message, 'error');
+        } finally {
+            const deleteBtn = document.getElementById('confirm-delete-btn');
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = 'Delete project';
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function escapeJsString(text) {
+        if (!text) return '';
+        return text
+            .replace(/\\/g, '\\\\')  // Escape backslashes first
+            .replace(/'/g, "\\'")    // Escape single quotes
+            .replace(/"/g, '\\"')    // Escape double quotes
+            .replace(/\n/g, '\\n')   // Escape newlines
+            .replace(/\r/g, '\\r')   // Escape carriage returns
+            .replace(/\t/g, '\\t');  // Escape tabs
+    }
+
+    // Handle keyboard shortcuts
+    document.addEventListener('keydown', function (event) {
+        // Escape key closes modals
+        if (event.key === 'Escape') {
+            hideCreateProjectModal();
+            hideDeleteProjectModal();
+        }
+
+        // Ctrl+N or Cmd+N opens create project modal
+        if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+            event.preventDefault();
+            showCreateProjectModal();
+        }
+    });
+</script>
+{% endblock %}

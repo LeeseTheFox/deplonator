@@ -1,0 +1,35 @@
+services:
+  telegram-bot-deployer:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        WORKDIR /app
+        COPY pyproject.toml ./
+        COPY src/ ./src/
+        COPY static/ ./static/
+        COPY templates/ ./templates/
+        COPY alembic/ ./alembic/
+        COPY alembic.ini ./
+        RUN pip install --no-cache-dir -e .
+        RUN mkdir -p /app/data
+        EXPOSE 5643
+    container_name: telegram-bot-deployer
+    restart: unless-stopped
+    ports:
+      - "5643:5643"
+    volumes:
+      # Mount Docker socket to control Docker from inside the container (Docker-out-of-Docker)
+      # This allows the panel to create/manage bot containers as siblings on the host
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persist database and project files
+      - ./data:/app/data
+      # Live-editable source code and assets
+      - ./src:/app/src
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - ./alembic:/app/alembic
+    environment:
+      - DATABASE_URL=sqlite:///./data/database.sqlite
+      - HOST_DATA_PATH=${PWD}/data
+    command: uvicorn src.main:app --host 0.0.0.0 --port 5643 --reload

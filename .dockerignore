@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+.eggs
+*.egg
+.venv
+venv
+ENV
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Data (will be mounted as volume)
+data/
+
+# macOS
+.DS_Store
+
+# Alembic versions (keep structure but not migrations for fresh start)
+# alembic/versions/*.py
+
+# Build artifacts
+dist/
+build/

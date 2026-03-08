@@ -1,0 +1,2832 @@
+{% extends "base.html" %}
+
+{% block title %}Management - Deplonator{% endblock %}
+
+{% block page_title %}Management{% endblock %}
+{% block page_subtitle %}Manage your Telegram bot project{% endblock %}
+
+{% block content %}
+<!-- Project Info Bar -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div class="flex items-center justify-between w-full">
+            <div class="flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <h3 class="card-title" id="project-name">Loading...</h3>
+                    <button type="button" class="rename-btn" id="rename-btn" onclick="showRenameModal()"
+                        title="Rename project" style="display: none;">
+                        ✏️
+                    </button>
+                </div>
+                <div class="text-small text-muted" id="project-info">Loading...</div>
+            </div>
+            <div class="flex items-center gap-4 flex-shrink-0">
+                <div class="flex flex-col items-end">
+                    <div class="status" id="project-status">
+                        <div class="status-dot"></div>
+                        <span>Loading...</span>
+                    </div>
+                    <!-- Uptime Counter -->
+                    <div id="uptime-counter" class="text-xs text-muted mt-1" style="display: none;">
+                        <span id="uptime-text">Uptime: --</span>
+                    </div>
+                </div>
+                <a href="/projects" class="btn btn-secondary">← Back to projects</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Upload Section -->
+<!-- Bot Management Section -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h3 class="card-title">Bot management</h3>
+    </div>
+
+    <div class="grid grid-2 gap-6 p-4">
+        <!-- Left Column: Console/Logs -->
+        <div>
+            <!-- Log Controls (Search/Filter) -->
+            <div class="logs-controls mb-3">
+                <div class="flex gap-2 items-center">
+                    <div class="form-group flex-1">
+                        <input type="text" id="log-search" class="form-input" placeholder="Search logs..."
+                            onkeyup="debouncedFilterLogs()">
+                    </div>
+                    <div class="form-group">
+                        <select id="log-level-filter" class="form-select" onchange="filterLogs()">
+                            <option value="">No filtering</option>
+                            <option value="error">Errors only</option>
+                            <option value="warning">Warnings only</option>
+                            <option value="info">Info only</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <select id="log-tail" class="form-select" onchange="refreshLogs()">
+                            <option value="50">Last 50 lines</option>
+                            <option value="100" selected>Last 100 lines</option>
+                            <option value="200">Last 200 lines</option>
+                            <option value="500">Last 500 lines</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="scrollToBottom()"
+                        title="Scroll to bottom">
+                        ⬇️
+                    </button>
+                </div>
+            </div>
+
+            <!-- Console Container -->
+            <div id="logs-container" class="logs-container">
+                <div class="text-center text-muted">
+                    <div class="text-3xl mb-2">📋</div>
+                    <p>No logs available. Deploy your bot to see logs.</p>
+                </div>
+            </div>
+
+            <!-- Console Actions (Bottom) -->
+            <div class="console-actions mt-3">
+                <div class="flex items-center justify-between">
+                    <span id="last-updated" class="text-small text-muted">Never updated</span>
+                    <div class="flex gap-2">
+                        <button type="button" class="btn btn-sm btn-success" onclick="toggleAutoRefresh()"
+                            id="auto-refresh-btn">
+                            ⏸️ Auto-refresh
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="refreshLogs()">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Bot Controls -->
+        <div>
+            <!-- Progress Indicator for Deployment -->
+            <div id="deployment-progress" class="hidden mb-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="spinner"></div>
+                    <span id="deployment-progress-text">Deploying...</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="deployment-progress-fill"></div>
+                </div>
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="deployment-controls">
+                <div class="flex flex-col gap-2">
+                    <button type="button" class="btn btn-primary" id="deploy-btn" onclick="deployProject()">
+                        🚀 Deploy bot
+                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" class="btn btn-success flex-1" id="start-btn" onclick="startProject()"
+                            disabled>
+                            ▶️ Start
+                        </button>
+                        <button type="button" class="btn btn-warning flex-1" id="stop-btn" onclick="stopProject()"
+                            disabled>
+                            ⏹️ Stop
+                        </button>
+                        <button type="button" class="btn btn-secondary flex-1" id="restart-btn"
+                            onclick="restartProject()" disabled>
+                            🔄 Restart
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="redeploy-btn" onclick="redeployProject()"
+                        style="display: none;">
+                        🔄 Redeploy
+                    </button>
+
+                </div>
+
+                <!-- Container Info -->
+                <div id="container-info" class="mt-4 hidden">
+                    <div class="text-small text-muted">
+                        <div class="container-row">
+                            <strong>Docker container name:</strong>
+                            <code id="container-name">-</code>
+                        </div>
+                        <div class="container-row">
+                            <strong>Docker container ID:</strong>
+                            <code id="container-id">-</code>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Error Control Panel -->
+                <div id="error-warning-panel" class="error-controls mt-4" style="display: none;">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <span class="text-sm font-medium">⚠️ Errors detected in logs</span>
+                    </div>
+                    <div class="flex gap-2 mb-2">
+                        <button type="button" class="btn btn-sm btn-secondary flex-1" onclick="acknowledgeErrors()">
+                            ✓ Acknowledge
+                        </button>
+                    </div>
+                    <!-- Deployment Error Logs (only shown for failed deployments) -->
+                    <div id="deployment-error-logs" style="display: none;">
+                        <div class="flex items-center gap-2 mb-2">
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleDeploymentLogs()"
+                                id="toggle-logs-btn">
+                                📋 Show build logs
+                            </button>
+                        </div>
+                        <div id="deployment-logs-content" class="deployment-logs-container" style="display: none;">
+                            <pre id="deployment-logs-text" class="deployment-logs-text"></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Settings Panel (always visible) -->
+                <div class="error-settings mt-4">
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" id="silence-errors-checkbox"
+                            onchange="toggleErrorSilencing(this.checked)">
+                        <span>Silence error notifications</span>
+                    </label>
+                    <div class="text-xs text-muted mt-1">
+                        When enabled, new errors will be ignored
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Settings -->
+            <form id="config-form" class="mt-4">
+                <div class="form-group">
+                    <label for="requirements-path" class="form-label">Requirements file</label>
+                    <select id="requirements-path" class="form-select" onchange="saveConfiguration()">
+                        <option value="">Select requirements.txt file...</option>
+                    </select>
+                    <div class="text-small text-muted mt-1">
+                        Choose the requirements.txt file that contains your bot's dependencies.
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="startup-file" class="form-label">Startup file</label>
+                    <select id="startup-file" class="form-select" onchange="saveConfiguration()">
+                        <option value="">Select startup file...</option>
+                    </select>
+                    <div class="text-small text-muted mt-1">
+                        Choose the main Python (.py) or shell script (.sh) file that starts your bot.
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="auto-start" name="auto_start"
+                            onchange="saveAutoStartConfiguration()">
+                        <label for="auto-start" class="form-label">Auto-start on system boot</label>
+                    </div>
+                    <div class="text-small text-muted mt-1">
+                        When enabled, your bot will automatically start when the server reboots.
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="system-dependencies" class="form-label">System dependencies</label>
+                    <input type="text" id="system-dependencies" class="form-input"
+                        placeholder="e.g., ffmpeg,imagemagick,curl" onchange="saveConfiguration()">
+                    <div class="text-small text-muted mt-1">
+                        Optional system packages to install in the bot container (comma-separated). Equivalent to using
+                        'apt-get install' in the Docker container.
+                    </div>
+                    <div id="system-deps-status" class="text-small mt-1" style="display: none;">
+                        <span class="text-success">✓ Configured: <strong id="configured-packages"></strong></span>
+                    </div>
+                </div>
+            </form>
+
+            <div class="mt-6 pt-4 border-t border-border">
+                <h4 class="text-xs font-medium text-muted uppercase tracking-wide mb-3">Maintenance tools</h4>
+                <div>
+                    <button type="button" class="btn btn-sm btn-secondary w-full justify-center"
+                        id="maintenance-menu-btn" onclick="openMaintenanceMenu()" style="display: none;">
+                        🛠️ Open maintenance menu
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Files Section -->
+<div class="card">
+    <div class="card-header">
+        <div class="flex items-center justify-between w-full">
+            <h3 class="card-title">Files</h3>
+            <div class="flex gap-2">
+                <a href="/api/projects/{{ project_id }}/download" class="btn btn-secondary btn-sm"
+                    title="Download Project as ZIP">
+                    ⬇️ Download
+                </a>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAllFolders()" id="toggle-all-btn">
+                    📂 Expand all
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="refreshFiles()">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="files-grid gap-6 p-4">
+        <!-- Left Column: Project Files -->
+        <div>
+            <div id="file-tree-container">
+                <div class="loading-indicator text-center">
+                    <div class="spinner"></div>
+                    <span class="ml-2">Loading files...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Upload Area -->
+        <div>
+            <div class="file-upload-container">
+                <div id="file-upload-area" class="file-upload">
+                    <div class="file-upload-content">
+                        <div class="text-3xl mb-4">📁</div>
+                        <h4>Drag and drop files here</h4>
+                        <p class="text-muted mb-2">or click to browse files</p>
+                        <input type="file" id="file-input" multiple webkitdirectory style="display: none;">
+                        <input type="file" id="single-file-input" multiple style="display: none;">
+                    </div>
+                </div>
+
+                <!-- Upload Progress -->
+                <div id="upload-progress" class="hidden">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="spinner"></div>
+                        <span>Uploading files...</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Rename Project Modal -->
+<div id="rename-project-modal" class="modal hidden">
+    <div class="modal-overlay" onclick="hideRenameModal()"></div>
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title">Rename project</h3>
+            <button type="button" class="modal-close" onclick="hideRenameModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+            <div class="text-center mb-4">
+                <div class="text-3xl mb-2">✏️</div>
+                <p class="text-muted">
+                    Enter a new name for your project.
+                </p>
+            </div>
+
+            <div class="form-group">
+                <label for="new-project-name" class="form-label">New project name</label>
+                <input type="text" id="new-project-name" class="form-input" placeholder="Enter new project name..."
+                    maxlength="50">
+                <div class="text-small text-muted mt-1">
+                    1-50 characters. The project ID and Docker container name will also change.
+                </div>
+            </div>
+
+            <div id="rename-error" class="alert alert-error mt-2" style="display: none;"></div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="hideRenameModal()">
+                Cancel
+            </button>
+            <button type="button" class="btn btn-primary" id="confirm-rename-btn" onclick="confirmRename()">
+                Rename project
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-file-modal" class="modal hidden">
+    <div class="modal-overlay" onclick="hideDeleteFileModal()"></div>
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title">Delete file</h3>
+            <button type="button" class="modal-close" onclick="hideDeleteFileModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+            <div class="text-center mb-4">
+                <div class="text-danger text-3xl mb-2">⚠️</div>
+                <h4>Are you sure you want to delete this file?</h4>
+                <p class="text-muted mt-2">
+                    This will permanently delete "<strong id="delete-file-name"></strong>".
+                    This action cannot be undone.
+                </p>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="hideDeleteFileModal()">
+                Cancel
+            </button>
+            <button type="button" class="btn btn-danger" id="confirm-delete-file-btn" onclick="confirmDeleteFile()">
+                Delete file
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Maintenance mode menu modal -->
+<div id="maintenance-mode-modal" class="modal hidden">
+    <div class="modal-overlay" onclick="hideMaintenanceModal()"></div>
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title">Maintenance mode</h3>
+            <button type="button" class="modal-close" onclick="hideMaintenanceModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+            <!-- STATE: START (Default/Not in maintenance) -->
+            <div id="maintenance-state-start">
+                <div class="text-center mb-4">
+                    <div class="text-warning text-3xl mb-2">🛠️</div>
+                    <h4 class="font-medium mb-2">Start maintenance mode?</h4>
+                    <p class="text-muted mb-4">
+                        This will start a sleeping Docker container, allowing you to debug your project and run commands
+                        in its environment.<br>
+                        <strong>Your bot code will NOT be executed automatically.</strong>
+                    </p>
+                </div>
+            </div>
+
+            <!-- STATE: ACTIVE (In maintenance) -->
+            <div id="maintenance-state-active" class="hidden">
+                <div class="text-center mb-4">
+                    <div class="text-success text-3xl mb-2">✅</div>
+                    <h4 class="font-medium mb-2">Maintenance mode active</h4>
+                    <p class="text-muted mb-4">
+                        The container is running in idle mode.
+                    </p>
+
+                    <div class="alert alert-info text-left text-sm mb-4">
+                        <div class="font-medium mb-2">Access Container:</div>
+                        <div class="flex gap-2">
+                            <input type="text" id="maintenance-modal-command" class="form-input font-mono text-xs"
+                                readonly value="Loading..." onclick="this.select()">
+                            <button type="button" class="btn btn-secondary btn-sm"
+                                onclick="copyMaintenanceCommand(this)">
+                                📋
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="hideMaintenanceModal()">
+                Close
+            </button>
+
+            <!-- Footer controls for START state -->
+            <span id="maintenance-footer-start">
+                <button type="button" class="btn btn-warning" id="confirm-maintenance-btn"
+                    onclick="confirmStartMaintenance()">
+                    Start Maintenance
+                </button>
+            </span>
+
+            <!-- Footer controls for ACTIVE state -->
+            <span id="maintenance-footer-active" class="hidden">
+                <button type="button" class="btn btn-primary" id="confirm-exit-maintenance-btn"
+                    onclick="exitMaintenanceMode()">
+                    Exit maintenance mode
+                </button>
+            </span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Project detail page specific JavaScript
+    let currentProjectId = '{{ project_id }}';
+    let currentDeleteFilePath = null;
+    let currentProjectStatus = 'unknown';
+    let statusRefreshInterval = null;
+    let logsRefreshInterval = null;
+    let autoRefreshEnabled = true;
+    let allLogLines = [];
+    let filteredLogLines = [];
+    let uptimeInterval = null;
+    let containerStartTime = null;
+    let currentImageCreatedAt = null;
+    let currentContentUpdatedAt = null;
+    let expandedFolders = new Set(); // Track expanded folders for state preservation
+
+    // Debounce mechanism to prevent rapid updates
+    let updateDebounceTimer = null;
+    let isUpdating = false;
+    let filterDebounceTimer = null;
+
+    function debounceUpdate(fn, delay = 100) {
+        return function (...args) {
+            if (updateDebounceTimer) {
+                clearTimeout(updateDebounceTimer);
+            }
+            updateDebounceTimer = setTimeout(() => {
+                if (!isUpdating) {
+                    isUpdating = true;
+                    fn.apply(this, args).finally(() => {
+                        isUpdating = false;
+                    });
+                }
+            }, delay);
+        };
+    }
+
+    // Debounced filter function for search input
+    function debouncedFilterLogs() {
+        if (filterDebounceTimer) {
+            clearTimeout(filterDebounceTimer);
+        }
+        filterDebounceTimer = setTimeout(() => {
+            filterLogs();
+        }, 150); // 150ms debounce for typing
+    }
+
+    // Uptime calculation functions
+    function formatUptime(startTime) {
+        if (!startTime) return '--';
+
+        const start = new Date(startTime);
+        const now = new Date();
+        const diffMs = now - start;
+
+        if (diffMs < 0) return '--';
+
+        const seconds = Math.floor(diffMs / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        const months = Math.floor(days / 30);
+        const years = Math.floor(days / 365);
+
+        if (years > 0) {
+            const remainingMonths = Math.floor((days % 365) / 30);
+            return remainingMonths > 0 ? `${years}y ${remainingMonths}mo` : `${years}y`;
+        } else if (months > 0) {
+            const remainingDays = days % 30;
+            return remainingDays > 0 ? `${months}mo ${remainingDays}d` : `${months}mo`;
+        } else if (days > 0) {
+            const remainingHours = hours % 24;
+            return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+        } else if (hours > 0) {
+            const remainingMinutes = minutes % 60;
+            return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+        } else if (minutes > 0) {
+            const remainingSeconds = seconds % 60;
+            return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+        } else {
+            return `${seconds}s`;
+        }
+    }
+
+    function updateUptime() {
+        if (containerStartTime) {
+            const uptimeText = formatUptime(containerStartTime);
+            // Use requestAnimationFrame to sync with browser paint cycle
+            requestAnimationFrame(() => {
+                const element = document.getElementById('uptime-text');
+                if (element) {
+                    element.textContent = `Uptime: ${uptimeText}`;
+                }
+            });
+        }
+    }
+
+    function startUptimeCounter(startTime) {
+        containerStartTime = startTime;
+
+        // Clear existing interval
+        if (uptimeInterval) {
+            clearInterval(uptimeInterval);
+        }
+
+        // Show uptime counter
+        const uptimeCounter = document.getElementById('uptime-counter');
+        uptimeCounter.style.display = 'block';
+
+        // Update immediately
+        updateUptime();
+
+        // Update every second
+        uptimeInterval = setInterval(updateUptime, 1000);
+    }
+
+    function stopUptimeCounter() {
+        containerStartTime = null;
+
+        // Clear interval
+        if (uptimeInterval) {
+            clearInterval(uptimeInterval);
+            uptimeInterval = null;
+        }
+
+        // Hide uptime counter
+        const uptimeCounter = document.getElementById('uptime-counter');
+        uptimeCounter.style.display = 'none';
+    }
+
+    // Check if we have a valid project ID
+    if (!currentProjectId || currentProjectId === 'new' || currentProjectId.includes('{' + '{')) {
+        console.error('Invalid project ID detected:', currentProjectId);
+        // Redirect to projects list page
+        window.location.href = '/projects';
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Check if we have a valid project ID before doing anything
+        if (!currentProjectId || currentProjectId === 'new' || currentProjectId.includes('{' + '{')) {
+            console.error('Invalid project ID, redirecting to projects page');
+            window.location.href = '/projects';
+            return;
+        }
+
+        // Load project details and files
+        loadProjectDetails();
+        loadProjectFiles();
+        loadProjectConfiguration();
+
+        // Prevent accidental modal triggers
+        window.addEventListener('error', function (e) {
+            console.error('JavaScript error detected:', e.error);
+            // Hide any modals that might have been triggered by errors
+            const fileModal = document.getElementById('delete-file-modal');
+            if (fileModal && !fileModal.classList.contains('hidden')) {
+                console.log('Hiding file modal due to JavaScript error');
+                hideDeleteFileModal();
+            }
+        });
+
+        // Override any global functions that might conflict
+        const originalShowDeleteFileModal = window.showDeleteFileModal;
+        window.showDeleteFileModal = function (filePath, fileName) {
+            // Only call the function if we're in the project detail page and have valid parameters
+            if (currentProjectId && filePath && fileName && filePath !== '' && fileName !== '') {
+                originalShowDeleteFileModal(filePath, fileName);
+            } else {
+                console.warn('showDeleteFileModal called with invalid parameters or outside project context');
+            }
+        };
+
+        // Setup drag and drop
+        setupDragAndDrop();
+
+        // Setup file input handlers
+        setupFileInputs();
+
+        // Setup deployment controls
+        setupDeploymentControls();
+
+        // Start auto-refresh for status
+        startStatusAutoRefresh();
+    });
+
+    // Cleanup when page unloads
+    window.addEventListener('beforeunload', function () {
+        stopStatusAutoRefresh();
+        stopLogsAutoRefresh();
+        stopUptimeCounter();
+    });
+
+    function setupDeploymentControls() {
+        // Load initial deployment status
+        loadDeploymentStatus();
+
+        // Load initial logs after a short delay to allow deployment status to load first
+        setTimeout(async () => {
+            try {
+                // Only load logs if the project has been deployed (has a container)
+                const response = await BotDeployer.apiCall(`/projects/${currentProjectId}`);
+                if (response.container_id) {
+                    loadLogs(true);
+                } else {
+                    // Show appropriate message for non-deployed projects
+                    const logsContainer = document.getElementById('logs-container');
+                    logsContainer.innerHTML = `
+                    <div class="text-center text-muted">
+                        <div class="text-3xl mb-2">📋</div>
+                        <p>No logs available. Deploy your bot to see logs.</p>
+                    </div>
+                `;
+                }
+            } catch (error) {
+                console.error('Failed to check deployment status for logs:', error);
+            }
+        }, 500);
+
+        // Setup button states based on project status
+        updateDeploymentButtons();
+        // Note: updateConfigurationForm will be called after loadDeploymentStatus completes
+    }
+
+    function startStatusAutoRefresh() {
+        // Refresh status every 10 seconds to reduce page jitter
+        statusRefreshInterval = setInterval(() => {
+            if (!document.hidden) {
+                loadDeploymentStatus();
+                loadProjectFiles(true); // Auto-refresh files to update timestamps (silent mode)
+            }
+        }, 10000);
+    }
+
+    function stopStatusAutoRefresh() {
+        if (statusRefreshInterval) {
+            clearInterval(statusRefreshInterval);
+            statusRefreshInterval = null;
+        }
+    }
+
+    function startLogsAutoRefresh() {
+        if (!autoRefreshEnabled) return;
+
+        // Refresh logs every 5 seconds
+        logsRefreshInterval = setInterval(() => {
+            if (!document.hidden && autoRefreshEnabled) {
+                loadLogs(false); // Don't show loading indicator for auto-refresh
+            }
+        }, 5000);
+    }
+
+    function stopLogsAutoRefresh() {
+        if (logsRefreshInterval) {
+            clearInterval(logsRefreshInterval);
+            logsRefreshInterval = null;
+        }
+    }
+
+    async function loadDeploymentStatus() {
+        try {
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}`);
+
+            // Use requestAnimationFrame to batch all UI updates together
+            // This prevents multiple reflows and layout shifts
+            requestAnimationFrame(() => {
+                updateDeploymentButtons(response.status);
+                updateConfigurationForm(response.status);
+                updateTopStatusBar(response);
+            });
+
+            // Auto-refresh logs if container is running
+            if ((response.status === 'running' || response.status === 'error') && !logsRefreshInterval && autoRefreshEnabled) {
+                startLogsAutoRefresh();
+                loadLogs(false);
+            } else if (response.status !== 'running' && response.status !== 'error' && logsRefreshInterval) {
+                stopLogsAutoRefresh();
+            }
+
+        } catch (error) {
+            console.error('Failed to load deployment status:', error);
+            // Don't show error alerts for auto-refresh failures to avoid spam
+        }
+    }
+
+    function updateContainerInfo(project) {
+        const containerInfo = document.getElementById('container-info');
+        const containerName = document.getElementById('container-name');
+        const containerId = document.getElementById('container-id');
+
+        if (project.container_id) {
+            // Project ID is the container name
+            containerName.textContent = project.id;
+            containerId.textContent = project.container_id;
+            containerInfo.classList.remove('hidden');
+        } else {
+            containerInfo.classList.add('hidden');
+        }
+    }
+    function updateTopStatusBar(project) {
+        // Batch all DOM reads first
+        const statusElement = document.getElementById('project-status');
+        const projectInfoElement = document.getElementById('project-info');
+
+        // Store current project name for rename feature
+        currentProjectName = project.name;
+        currentProjectStatus = project.status; // Update global status
+
+        // Prepare all new content
+        const statusClass = `status ${BotDeployer.getStatusClass(project.status)}`;
+        const statusHTML = `
+        <div class="status-dot"></div>
+        <span>${getStatusLabel(project.status)}</span>
+    `;
+        const projectInfoHTML = `
+        Created ${BotDeployer.formatDate(project.created_at)}<br>
+        Last modified ${BotDeployer.formatDate(project.updated_at)}
+    `;
+
+        // Batch all DOM writes in a single requestAnimationFrame
+        requestAnimationFrame(() => {
+            // Update the top status indicator
+            statusElement.className = statusClass;
+            statusElement.innerHTML = statusHTML;
+
+            // Update the project info
+            projectInfoElement.innerHTML = projectInfoHTML;
+
+            // Update container info and error panel
+            updateContainerInfo(project);
+            updateErrorControlPanel(project);
+
+            // Update rename button visibility based on status
+            updateRenameButtonVisibility(project.status);
+        });
+
+        // Store last content modification time for stale check
+        // If last_modification_at is available (added in recent update), use it.
+        // Otherwise fall back to updated_at (though this may cause false positives on status changes)
+        currentContentUpdatedAt = project.last_modification_at;
+
+        // Fetch container status if we have a container ID (even if stopped)
+        // This is needed to get image creation time for stale check
+        if (project.container_id) {
+            fetchContainerStatus();
+        } else {
+            // If no container, we can't be stale (or rather, we are not deployed)
+            currentImageCreatedAt = null;
+            stopUptimeCounter();
+            // Re-evaluate buttons now that we know we don't have an image
+            updateDeploymentButtons(project.status);
+        }
+    }
+
+    async function fetchContainerStatus() {
+        try {
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/status`);
+
+            if (response.is_running && response.started_at) {
+                startUptimeCounter(response.started_at);
+            } else {
+                stopUptimeCounter();
+            }
+
+            // Store image creation time
+            if (response.image_created_at) {
+                currentImageCreatedAt = response.image_created_at;
+                // Re-evaluate buttons to check for staleness
+                updateDeploymentButtons(currentProjectStatus);
+            }
+
+        } catch (error) {
+            console.error('Failed to fetch container status:', error);
+            stopUptimeCounter();
+        }
+    }
+
+    function updateDeploymentButtons(status) {
+        currentProjectStatus = status;
+        const deployBtn = document.getElementById('deploy-btn');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const redeployBtn = document.getElementById('redeploy-btn');
+        const maintenanceMenuBtn = document.getElementById('maintenance-menu-btn');
+
+        // Prepare all state changes first (no DOM writes yet)
+        const buttonStates = {
+            deploy: { disabled: false, loading: false, text: '🚀 Deploy bot', display: 'block' },
+            start: { disabled: false },
+            stop: { disabled: false },
+            restart: { disabled: false },
+            redeploy: { display: 'none' },
+            maintenanceMenu: { display: 'none' }
+        };
+
+        switch (status) {
+            case 'created':
+                buttonStates.deploy.disabled = false; // Can deploy from created
+                buttonStates.start.disabled = true;
+                buttonStates.stop.disabled = true;
+                buttonStates.restart.disabled = true;
+                break;
+            case 'configured':
+                buttonStates.deploy.disabled = false; // Can deploy from configured
+                buttonStates.start.disabled = true;
+                buttonStates.stop.disabled = true;
+                buttonStates.restart.disabled = true;
+                break;
+            case 'deploying':
+                buttonStates.deploy.disabled = true;
+                buttonStates.deploy.text = '⏳ Deploying...';
+                buttonStates.start.disabled = true;
+                buttonStates.stop.disabled = true;
+                buttonStates.restart.disabled = true;
+                break;
+            case 'running':
+            case 'error':
+                buttonStates.deploy.display = 'none';
+                buttonStates.redeploy.display = 'block';
+                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.start.disabled = true;
+                break;
+            case 'stopped':
+                buttonStates.deploy.display = 'none';
+                buttonStates.redeploy.display = 'block';
+                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.stop.disabled = true;
+                break;
+            case 'failed':
+                buttonStates.deploy.text = '🔄 Retry Deploy';
+                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.start.disabled = true;
+                buttonStates.stop.disabled = true;
+                buttonStates.restart.disabled = true;
+                break;
+            case 'maintenance':
+                buttonStates.deploy.display = 'none';
+                buttonStates.redeploy.display = 'block';
+                buttonStates.maintenanceMenu.display = 'block';
+                buttonStates.start.disabled = true;
+                buttonStates.stop.disabled = true;
+                buttonStates.restart.disabled = true;
+                break;
+            default:
+                buttonStates.deploy.disabled = true;
+                buttonStates.start.disabled = true;
+                buttonStates.stop.disabled = true;
+                buttonStates.restart.disabled = true;
+                buttonStates.redeploy.disabled = true;
+        }
+
+        // Batch all DOM writes in a single operation
+        // Reset all buttons first
+        const allButtons = [deployBtn, startBtn, stopBtn, restartBtn, redeployBtn];
+        allButtons.forEach(btn => {
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('loading', 'btn-warning', 'btn-info', 'btn-primary', 'btn-success', 'btn-secondary');
+                btn.title = ''; // Clear any stale check tooltips
+            }
+        });
+
+        // Restore original HTML classes
+        deployBtn.classList.add('btn-primary');
+        startBtn.classList.add('btn-success');
+        stopBtn.classList.add('btn-warning');
+        restartBtn.classList.add('btn-secondary');
+        redeployBtn.classList.add('btn-secondary');
+
+        // Apply computed states
+        deployBtn.disabled = buttonStates.deploy.disabled;
+        deployBtn.innerHTML = buttonStates.deploy.text;
+        deployBtn.style.display = buttonStates.deploy.display;
+
+        startBtn.disabled = buttonStates.start.disabled;
+        stopBtn.disabled = buttonStates.stop.disabled;
+        restartBtn.disabled = buttonStates.restart.disabled;
+
+        // Reset default text/icons for buttons that might have been changed by stale checks
+        startBtn.innerHTML = '▶️ Start';
+        restartBtn.innerHTML = '🔄 Restart';
+        redeployBtn.innerHTML = '🔄 Redeploy';
+        redeployBtn.style.display = buttonStates.redeploy.display;
+
+        if (maintenanceMenuBtn) {
+            maintenanceMenuBtn.disabled = false;
+            maintenanceMenuBtn.classList.remove('loading');
+            maintenanceMenuBtn.style.display = buttonStates.maintenanceMenu.display;
+        }
+
+        // STALE CHECK: Differentiate between File Changes (Restart) and Config Changes (Redeploy)
+
+        let needsRestart = false;
+        let needsRedeploy = false;
+
+        // Check 1: Configuration Changes (requires Redeploy)
+        if (currentProjectData && currentProjectData.last_config_change_at && currentImageCreatedAt) {
+            const configTime = new Date(currentProjectData.last_config_change_at);
+            const imageTime = new Date(currentImageCreatedAt);
+            // Buffer of 2 seconds
+            if (configTime.getTime() > imageTime.getTime() + 2000) {
+                needsRedeploy = true;
+            }
+        }
+
+        // Check 2: File Content Changes (requires Restart usually, or maybe nothing)
+        if (currentContentUpdatedAt && currentImageCreatedAt && !needsRedeploy) {
+            const contentTime = new Date(currentContentUpdatedAt);
+            const imageTime = new Date(currentImageCreatedAt);
+            if (contentTime.getTime() > imageTime.getTime() + 2000) {
+                needsRestart = true;
+            }
+        }
+
+        // Apply UI states based on checks
+
+        if (needsRedeploy) {
+            // Config changed: Strong warning to REDEPLOY
+            if (redeployBtn.style.display !== 'none') {
+                redeployBtn.innerHTML = '⚠️ Redeploy needed';
+                redeployBtn.classList.remove('btn-secondary');
+                redeployBtn.classList.add('btn-warning');
+                redeployBtn.title = 'Configuration has changed. You must redeploy to apply changes.';
+            }
+
+            // Disable Start button because running with old config is bad practice
+            if (!startBtn.disabled) {
+                startBtn.disabled = true;
+                startBtn.title = 'Configuration changed. Please redeploy.';
+            }
+            // Disable Restart button because restarting won't fix config mismatch
+            if (!restartBtn.disabled) {
+                restartBtn.disabled = true;
+                restartBtn.title = 'Configuration changed. Please redeploy.';
+            }
+
+        } else if (needsRestart) {
+            // Files changed: Prompt to RESTART
+            if (!restartBtn.disabled && redeployBtn.style.display !== 'block') {
+                restartBtn.title = 'File changes detected. Click to reload code.';
+                restartBtn.classList.add('btn-info'); // Info color for soft warning
+                if (!restartBtn.innerHTML.includes('↻')) {
+                    restartBtn.innerHTML = '↻ Restart';
+                }
+            }
+        }
+    }
+
+    function updateConfigurationForm(status) {
+        const requirementsSelect = document.getElementById('requirements-path');
+        const startupSelect = document.getElementById('startup-file');
+        const systemDependenciesInput = document.getElementById('system-dependencies');
+        // Auto-start can be changed while running since it updates the container policy immediately
+        const configElements = [requirementsSelect, startupSelect, systemDependenciesInput];
+
+        const isRunning = status === 'running' || status === 'error' || status === 'maintenance';
+
+        // Disable/enable configuration form based on bot status
+        // Auto-start checkbox is always enabled since it doesn't require redeploy
+        configElements.forEach(element => {
+            element.disabled = isRunning;
+        });
+
+        // Add visual indication when form is disabled
+        const configForm = document.getElementById('config-form');
+
+        if (configForm) {
+            if (isRunning) {
+                configForm.classList.add('config-disabled');
+
+                // Add a notice if not already present - place it at the end of the form
+                let notice = document.getElementById('config-disabled-notice');
+                if (!notice) {
+                    notice = document.createElement('div');
+                    notice.id = 'config-disabled-notice';
+                    notice.className = 'alert alert-info mt-4';
+                    notice.innerHTML = '⚠️ Some settings are locked while the bot is running or in maintenance mode.';
+                    configForm.appendChild(notice);
+                }
+            } else {
+                configForm.classList.remove('config-disabled');
+
+                // Remove notice if present
+                const notice = document.getElementById('config-disabled-notice');
+                if (notice) {
+                    notice.remove();
+                }
+            }
+        }
+    }
+
+    async function deployProject() {
+        const deployBtn = document.getElementById('deploy-btn');
+        const progressElement = document.getElementById('deployment-progress');
+        const progressText = document.getElementById('deployment-progress-text');
+        const progressFill = document.getElementById('deployment-progress-fill');
+
+        try {
+            // Show progress
+            deployBtn.disabled = true;
+            deployBtn.textContent = 'Deploying...';
+            progressElement.classList.remove('hidden');
+            progressText.textContent = 'Starting deployment...';
+            progressFill.style.width = '10%';
+
+            // Start deployment
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/deploy`, {
+                method: 'POST'
+            });
+
+            // Check if deployment was successful
+            if (!response.success) {
+                const errorMsg = response.error_message || 'Unknown deployment error';
+                // Store deployment logs for display
+                if (response.logs) {
+                    showDeploymentLogs(response.logs);
+                }
+                throw new Error(errorMsg);
+            }
+
+            progressText.textContent = 'Building container...';
+            progressFill.style.width = '50%';
+
+            // Poll for deployment completion
+            await pollDeploymentStatus();
+
+            progressText.textContent = 'Deployment complete!';
+            progressFill.style.width = '100%';
+
+            BotDeployer.showAlert('Deployed successfully!', 'success');
+
+            BotDeployer.showAlert('Deployed successfully!', 'success');
+
+            // Reload EVERYTHING to ensure timestamps are fresh
+            await loadProjectDetails();
+            await loadDeploymentStatus();
+
+            // Hide progress after a delay
+            setTimeout(() => {
+                progressElement.classList.add('hidden');
+                progressFill.style.width = '0%';
+            }, 2000);
+
+        } catch (error) {
+            console.error('Deployment failed:', error);
+            BotDeployer.showAlert('Deployment failed: ' + error.message, 'error');
+
+            progressText.textContent = 'Deployment failed';
+            progressFill.style.width = '0%';
+
+            // Update status to show failed state
+            await loadDeploymentStatus();
+
+            // Try to load logs to show what went wrong
+            try {
+                await loadLogs(false);
+            } catch (logError) {
+                console.error('Failed to load logs after deployment failure:', logError);
+            }
+
+            setTimeout(() => {
+                progressElement.classList.add('hidden');
+            }, 3000);
+        } finally {
+            deployBtn.disabled = false;
+            deployBtn.textContent = '🚀 Deploy bot';
+        }
+    }
+
+    async function pollDeploymentStatus() {
+        return new Promise((resolve, reject) => {
+            const maxAttempts = 30; // 30 seconds max
+            let attempts = 0;
+
+            const poll = async () => {
+                try {
+                    attempts++;
+                    const response = await BotDeployer.apiCall(`/projects/${currentProjectId}`);
+
+                    if (response.status === 'running') {
+                        resolve(response);
+                    } else if (response.status === 'failed') {
+                        // Include the error message if available
+                        const errorMsg = response.last_error_message || 'Deployment failed';
+                        reject(new Error(errorMsg));
+                    } else if (attempts >= maxAttempts) {
+                        reject(new Error('Deployment timeout'));
+                    } else {
+                        // Continue polling
+                        setTimeout(poll, 1000);
+                    }
+                } catch (error) {
+                    reject(error);
+                }
+            };
+
+            poll();
+        });
+    }
+
+    async function startProject() {
+        const startBtn = document.getElementById('start-btn');
+        const originalText = startBtn.textContent;
+
+        try {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Starting...';
+
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/start`, {
+                method: 'POST'
+            });
+
+            BotDeployer.showAlert('Started successfully!', 'success');
+            await loadDeploymentStatus();
+
+        } catch (error) {
+            console.error('Start failed:', error);
+            BotDeployer.showAlert('Failed to start: ' + error.message, 'error');
+        } finally {
+            startBtn.disabled = false;
+            startBtn.textContent = originalText;
+        }
+    }
+
+    async function stopProject() {
+        const stopBtn = document.getElementById('stop-btn');
+        const originalText = stopBtn.textContent;
+
+        try {
+            stopBtn.disabled = true;
+            stopBtn.textContent = 'Stopping...';
+
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/stop`, {
+                method: 'POST'
+            });
+
+            BotDeployer.showAlert('Stopped successfully!', 'success');
+            await loadDeploymentStatus();
+
+        } catch (error) {
+            console.error('Stop failed:', error);
+            BotDeployer.showAlert('Failed to stop: ' + error.message, 'error');
+        } finally {
+            stopBtn.disabled = false;
+            stopBtn.textContent = originalText;
+        }
+    }
+
+    async function restartProject() {
+        const restartBtn = document.getElementById('restart-btn');
+        const originalText = restartBtn.textContent;
+
+        try {
+            restartBtn.disabled = true;
+            restartBtn.textContent = 'Restarting...';
+
+            // Show immediate feedback that restart is starting
+            BotDeployer.showAlert('Restarting...', 'info');
+
+            // Call API to restart
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/restart`, { method: 'POST' });
+
+            // Refresh deployment status to show updated status
+            await loadDeploymentStatus();
+
+            // Stop current uptime counter immediately
+            stopUptimeCounter();
+
+            // Poll for restart completion
+            let restartComplete = false;
+            let attempts = 0;
+            const maxAttempts = 30; // 30 seconds max wait
+
+            while (!restartComplete && attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                attempts++;
+
+                try {
+                    const status = await BotDeployer.apiCall(`/projects/${currentProjectId}/status`);
+                    if (status.is_running && status.started_at) {
+                        // Container is running with a new start time
+                        restartComplete = true;
+                        BotDeployer.showAlert('Restarted successfully', 'success');
+                        // Start uptime counter with new start time
+                        fetchContainerStatus();
+                        // Refresh deployment status one more time to show final status
+                        await loadDeploymentStatus();
+                    }
+                } catch (error) {
+                    console.error('Error checking restart status:', error);
+                    break;
+                }
+            }
+
+            if (!restartComplete) {
+                BotDeployer.showAlert('Restart may have failed - please check status', 'warning');
+            }
+
+        } catch (error) {
+            console.error('Restart failed:', error);
+            BotDeployer.showAlert('Failed to restart: ' + error.message, 'error');
+        } finally {
+            restartBtn.disabled = false;
+            restartBtn.textContent = originalText;
+        }
+    }
+
+    async function redeployProject() {
+        if (!confirm('Are you sure you want to redeploy? This will rebuild and restart the container.')) {
+            return;
+        }
+
+        const redeployBtn = document.getElementById('redeploy-btn');
+        const progressElement = document.getElementById('deployment-progress');
+        const progressText = document.getElementById('deployment-progress-text');
+        const progressFill = document.getElementById('deployment-progress-fill');
+
+        try {
+            // Show progress
+            redeployBtn.disabled = true;
+            redeployBtn.textContent = 'Redeploying...';
+            progressElement.classList.remove('hidden');
+            progressText.textContent = 'Starting redeploy...';
+            progressFill.style.width = '10%';
+
+            // Start redeploy
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/redeploy`, {
+                method: 'POST'
+            });
+
+            // Check if redeploy was successful
+            if (!response.success) {
+                const errorMsg = response.error_message || 'Unknown redeploy error';
+                // Store deployment logs for display
+                if (response.logs) {
+                    showDeploymentLogs(response.logs);
+                }
+                throw new Error(errorMsg);
+            }
+
+            progressText.textContent = 'Rebuilding container...';
+            progressFill.style.width = '50%';
+
+            // Poll for deployment completion
+            await pollDeploymentStatus();
+
+            progressText.textContent = 'Redeploy complete!';
+            progressFill.style.width = '100%';
+
+            BotDeployer.showAlert('Redeployed successfully!', 'success');
+
+            BotDeployer.showAlert('Redeployed successfully!', 'success');
+
+            // Reload EVERYTHING to ensure timestamps are fresh
+            await loadProjectDetails();
+            await loadDeploymentStatus();
+
+            // Hide progress after a delay
+            setTimeout(() => {
+                progressElement.classList.add('hidden');
+                progressFill.style.width = '0%';
+            }, 2000);
+
+        } catch (error) {
+            console.error('Redeploy failed:', error);
+            BotDeployer.showAlert('Redeploy failed: ' + error.message, 'error');
+
+            progressText.textContent = 'Redeploy failed';
+            progressFill.style.width = '0%';
+
+            // Update status to show failed state
+            await loadDeploymentStatus();
+
+            // Try to load logs to show what went wrong
+            try {
+                await loadLogs(false);
+            } catch (logError) {
+                console.error('Failed to load logs after redeploy failure:', logError);
+            }
+
+            setTimeout(() => {
+                progressElement.classList.add('hidden');
+            }, 3000);
+        } finally {
+            redeployBtn.disabled = false;
+            redeployBtn.disabled = false;
+            // The text will be reset by updateDeploymentButtons calling after loadProjectDetails/loadDeploymentStatus
+            // But we set it here as a fallback
+            redeployBtn.textContent = '🔄 Redeploy';
+        }
+    }
+
+    async function loadLogs(showLoading = true) {
+        const logsContainer = document.getElementById('logs-container');
+        const tailSelect = document.getElementById('log-tail');
+        const tail = tailSelect ? tailSelect.value : 100;
+
+        // Store scroll state before any changes
+        const wasAtBottom = isScrolledToBottom(logsContainer);
+        const previousScrollTop = logsContainer.scrollTop;
+
+        try {
+            if (showLoading) {
+                logsContainer.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner"></div>
+                    <span class="ml-2">Loading logs...</span>
+                </div>
+            `;
+            }
+
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/logs?tail=${tail}`);
+
+            if (response.logs && response.logs.trim()) {
+                const logLines = response.logs.trim().split('\n');
+
+                // Store all log lines for filtering
+                allLogLines = logLines.map((line, index) => ({
+                    id: index,
+                    text: line,
+                    level: getLogLevel(line),
+                    timestamp: extractTimestamp(line) || new Date().toISOString()
+                }));
+
+                // Apply current filters (this will call displayLogs with requestAnimationFrame)
+                filterLogs();
+
+                // Update last updated time
+                updateLastUpdatedTime();
+
+            } else {
+                allLogLines = [];
+                filteredLogLines = [];
+                displayLogs([]);
+            }
+
+        } catch (error) {
+            console.error('Failed to load logs:', error);
+            if (showLoading) {
+                logsContainer.innerHTML = `
+                <div class="text-center text-muted">
+                    <div class="text-3xl mb-2">⚠️</div>
+                    <p>Failed to load logs: ${error.message}</p>
+                </div>
+            `;
+            }
+            allLogLines = [];
+            filteredLogLines = [];
+        }
+    }
+
+    function displayLogs(logLines) {
+        const logsContainer = document.getElementById('logs-container');
+
+        if (logLines.length === 0) {
+            logsContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <div class="text-3xl mb-2">📋</div>
+                <p>No logs available yet.</p>
+            </div>
+        `;
+            return;
+        }
+
+        // Remember scroll position before update
+        const wasAtBottom = isScrolledToBottom(logsContainer);
+        const previousScrollTop = logsContainer.scrollTop;
+
+        // Build HTML string first (batch DOM operations)
+        const html = logLines.map(logLine => {
+            const logClass = getLogLineClass(logLine.level);
+            const highlightedText = highlightSearchTerm(logLine.text);
+            return `<div class="log-line ${logClass}" data-level="${logLine.level}" data-timestamp="${logLine.timestamp}">${highlightedText}</div>`;
+        }).join('');
+
+        // Use requestAnimationFrame to batch DOM update with next paint
+        requestAnimationFrame(() => {
+            // Single DOM update
+            logsContainer.innerHTML = html;
+
+            // Restore scroll position in the same frame
+            requestAnimationFrame(() => {
+                if (wasAtBottom || autoRefreshEnabled) {
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+                } else {
+                    logsContainer.scrollTop = previousScrollTop;
+                }
+            });
+        });
+    }
+
+    function filterLogs() {
+        const searchTerm = document.getElementById('log-search').value.toLowerCase();
+        const levelFilter = document.getElementById('log-level-filter').value;
+
+        filteredLogLines = allLogLines.filter(logLine => {
+            // Apply search filter
+            const matchesSearch = !searchTerm || logLine.text.toLowerCase().includes(searchTerm);
+
+            // Apply level filter
+            const matchesLevel = !levelFilter || logLine.level === levelFilter;
+
+            return matchesSearch && matchesLevel;
+        });
+
+        displayLogs(filteredLogLines);
+    }
+
+    function getLogLevel(line) {
+        const lowerLine = line.toLowerCase();
+        if (lowerLine.includes('error') || lowerLine.includes('exception') || lowerLine.includes('traceback') || lowerLine.includes('fatal')) {
+            return 'error';
+        } else if (lowerLine.includes('warning') || lowerLine.includes('warn')) {
+            return 'warning';
+        } else if (lowerLine.includes('info') || lowerLine.includes('started') || lowerLine.includes('success')) {
+            return 'info';
+        } else if (lowerLine.includes('debug')) {
+            return 'debug';
+        }
+        return 'default';
+    }
+
+    function getLogLineClass(level) {
+        switch (level) {
+            case 'error': return 'error';
+            case 'warning': return 'warning';
+            case 'info': return 'info';
+            case 'debug': return 'debug';
+            default: return '';
+        }
+    }
+
+    function extractTimestamp(line) {
+        // Try to extract timestamp from common log formats
+        const timestampPatterns = [
+            /(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)/,
+            /(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2})/,
+            /(\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2})/
+        ];
+
+        for (const pattern of timestampPatterns) {
+            const match = line.match(pattern);
+            if (match) {
+                return new Date(match[1]).toISOString();
+            }
+        }
+
+        return null;
+    }
+
+    function highlightSearchTerm(text) {
+        const searchTerm = document.getElementById('log-search').value;
+        if (!searchTerm) return escapeHtml(text);
+
+        const escapedText = escapeHtml(text);
+        const escapedSearchTerm = escapeHtml(searchTerm);
+        const regex = new RegExp(`(${escapedSearchTerm})`, 'gi');
+
+        return escapedText.replace(regex, '<mark>$1</mark>');
+    }
+
+    function isScrolledToBottom(element) {
+        return element.scrollHeight - element.clientHeight <= element.scrollTop + 1;
+    }
+
+    function scrollToBottom() {
+        const logsContainer = document.getElementById('logs-container');
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function updateLastUpdatedTime() {
+        const lastUpdatedElement = document.getElementById('last-updated');
+        lastUpdatedElement.textContent = `Updated: ${new Date().toLocaleTimeString('en-GB', { hour12: false })}`;
+    }
+
+    function toggleAutoRefresh() {
+        autoRefreshEnabled = !autoRefreshEnabled;
+        const btn = document.getElementById('auto-refresh-btn');
+
+        if (autoRefreshEnabled) {
+            btn.innerHTML = '⏸️ Auto-refresh';
+            btn.classList.remove('btn-warning', 'btn-secondary');
+            btn.classList.add('btn-success');
+
+            // Start auto-refresh if container is running (check project status)
+            if (containerStartTime) { // If uptime counter is running, container is running
+                startLogsAutoRefresh();
+            }
+        } else {
+            btn.innerHTML = '▶️ Auto-refresh';
+            btn.classList.remove('btn-success', 'btn-secondary');
+            btn.classList.add('btn-warning');
+            stopLogsAutoRefresh();
+        }
+    }
+
+    async function acknowledgeErrors() {
+        try {
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/acknowledge-errors`, { method: 'POST' });
+            BotDeployer.showAlert('Errors acknowledged', 'success', 2000);
+
+            // Refresh project status to update the UI
+            await loadDeploymentStatus();
+        } catch (error) {
+            console.error('Failed to acknowledge errors:', error);
+            BotDeployer.showAlert('Failed to acknowledge errors: ' + error.message, 'error');
+        }
+    }
+
+    async function toggleErrorSilencing(silence) {
+        try {
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/silence-errors?silence=${silence}`, { method: 'POST' });
+            const message = silence ? 'Error notifications silenced' : 'Error notifications enabled';
+            BotDeployer.showAlert(message, 'success', 2000);
+
+            // Refresh project status to update the UI
+            await loadDeploymentStatus();
+        } catch (error) {
+            console.error('Failed to toggle error silencing:', error);
+            BotDeployer.showAlert('Failed to update error settings: ' + error.message, 'error');
+
+            // Revert checkbox state on error
+            const checkbox = document.getElementById('silence-errors-checkbox');
+            if (checkbox) {
+                checkbox.checked = !silence;
+            }
+        }
+    }
+
+    function updateErrorControlPanel(project) {
+        const errorWarningPanel = document.getElementById('error-warning-panel');
+        const silenceCheckbox = document.getElementById('silence-errors-checkbox');
+        const deploymentErrorLogs = document.getElementById('deployment-error-logs');
+        const acknowledgeButton = errorWarningPanel.querySelector('button[onclick="acknowledgeErrors()"]');
+
+        // Show error warning panel when there are actual errors or deployment failed
+        if (project.status === 'error') {
+            errorWarningPanel.style.display = 'block';
+            deploymentErrorLogs.style.display = 'none';
+            // Show acknowledge button for runtime errors
+            if (acknowledgeButton) {
+                acknowledgeButton.style.display = 'block';
+            }
+            // Update panel text for runtime errors
+            const panelText = errorWarningPanel.querySelector('.text-sm.font-medium');
+            if (panelText) {
+                panelText.textContent = '⚠️ Errors detected in logs';
+            }
+        } else if (project.status === 'failed' && project.last_error_message) {
+            errorWarningPanel.style.display = 'block';
+            deploymentErrorLogs.style.display = 'block';
+            // Hide acknowledge button for deployment failures
+            if (acknowledgeButton) {
+                acknowledgeButton.style.display = 'none';
+            }
+            // Update panel text to show deployment error
+            const panelText = errorWarningPanel.querySelector('.text-sm.font-medium');
+            if (panelText) {
+                panelText.innerHTML = `❌ Deployment failed: <span class="font-normal">${escapeHtml(project.last_error_message)}</span>`;
+            }
+        } else {
+            errorWarningPanel.style.display = 'none';
+            deploymentErrorLogs.style.display = 'none';
+        }
+
+        // Always update the silence checkbox state
+        if (silenceCheckbox) {
+            silenceCheckbox.checked = project.errors_silenced || false;
+        }
+    }
+
+    // Global variable to store deployment logs
+    let lastDeploymentLogs = '';
+
+    function toggleDeploymentLogs() {
+        const logsContent = document.getElementById('deployment-logs-content');
+        const toggleBtn = document.getElementById('toggle-logs-btn');
+
+        if (logsContent.style.display === 'none') {
+            logsContent.style.display = 'block';
+            toggleBtn.textContent = '📋 Hide build logs';
+        } else {
+            logsContent.style.display = 'none';
+            toggleBtn.textContent = '📋 Show build logs';
+        }
+    }
+
+    function showDeploymentLogs(logs) {
+        if (!logs) return;
+
+        lastDeploymentLogs = logs;
+        const logsText = document.getElementById('deployment-logs-text');
+        if (logsText) {
+            logsText.textContent = logs;
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function refreshLogs() {
+        await loadLogs(true);
+    }
+
+    function clearLogs() {
+        const logsContainer = document.getElementById('logs-container');
+        logsContainer.innerHTML = `
+        <div class="text-center text-muted">
+            <div class="text-3xl mb-2">📋</div>
+            <p>Logs cleared. Refresh to reload.</p>
+        </div>
+    `;
+
+        // Clear stored log data
+        allLogLines = [];
+        filteredLogLines = [];
+    }
+
+    async function loadProjectConfiguration() {
+        try {
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}`);
+
+            // Update configuration form with current values
+            document.getElementById('requirements-path').value = response.requirements_path || '';
+            document.getElementById('startup-file').value = response.startup_file || '';
+            document.getElementById('auto-start').checked = response.auto_start || false;
+            document.getElementById('system-dependencies').value = response.system_dependencies || '';
+
+            // Update system dependencies status indicator
+            updateSystemDepsStatus(response.system_dependencies);
+
+            // Update error settings
+            const silenceCheckbox = document.getElementById('silence-errors-checkbox');
+            if (silenceCheckbox) {
+                silenceCheckbox.checked = response.errors_silenced || false;
+            }
+
+        } catch (error) {
+            console.error('Failed to load project configuration:', error);
+            // Don't show error alert here as it might be called during initial load
+        }
+    }
+
+    // Update system dependencies status indicator
+    function updateSystemDepsStatus(deps) {
+        const statusDiv = document.getElementById('system-deps-status');
+        const packagesSpan = document.getElementById('configured-packages');
+
+        if (deps && deps.trim()) {
+            statusDiv.style.display = 'block';
+            packagesSpan.textContent = deps;
+        } else {
+            statusDiv.style.display = 'none';
+        }
+    }
+
+    // Auto-save configuration when any field changes
+    async function saveConfiguration() {
+        // Check if bot is running or in error state and prevent configuration changes
+        const statusElement = document.querySelector('.status');
+        const isRunning = statusElement && (statusElement.classList.contains('status-running') || statusElement.classList.contains('status-error'));
+
+        if (isRunning) {
+            BotDeployer.showAlert('Cannot change configuration while running. Please stop first.', 'warning', 4000);
+            // Reload configuration to revert any changes
+            await loadProjectConfiguration();
+            return;
+        }
+
+        try {
+            const formData = {
+                requirements_path: document.getElementById('requirements-path').value || null,
+                startup_file: document.getElementById('startup-file').value || null,
+                auto_start: document.getElementById('auto-start').checked,
+                system_dependencies: document.getElementById('system-dependencies').value || null
+            };
+
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/config`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            // Show success message
+            BotDeployer.showAlert('Configuration saved', 'success', 2000);
+
+            // Update system dependencies status indicator
+            updateSystemDepsStatus(formData.system_dependencies);
+
+            // Refresh project details and deployment status
+            await loadProjectDetails();
+            await loadDeploymentStatus();
+
+        } catch (error) {
+            console.error('Failed to save configuration:', error);
+
+            // Show specific message for running bot restriction
+            if (error.message && error.message.includes('while bot is running')) {
+                BotDeployer.showAlert('Cannot change configuration while running. Please stop first.', 'warning', 4000);
+                // Reload configuration to revert any changes
+                await loadProjectConfiguration();
+            } else {
+                BotDeployer.showAlert('Failed to save configuration: ' + error.message, 'error');
+            }
+        }
+    }
+
+    // Save auto-start configuration (can be changed while running)
+    async function saveAutoStartConfiguration() {
+        try {
+            const formData = {
+                requirements_path: document.getElementById('requirements-path').value || null,
+                startup_file: document.getElementById('startup-file').value || null,
+                auto_start: document.getElementById('auto-start').checked,
+                system_dependencies: document.getElementById('system-dependencies').value || null
+            };
+
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/config`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            // Show success message
+            const message = formData.auto_start ? 'Auto-start enabled' : 'Auto-start disabled';
+            BotDeployer.showAlert(message, 'success', 2000);
+
+            // Refresh project details and deployment status
+            await loadProjectDetails();
+            await loadDeploymentStatus();
+
+        } catch (error) {
+            console.error('Failed to save auto-start configuration:', error);
+            BotDeployer.showAlert('Failed to save auto-start setting: ' + error.message, 'error');
+            // Reload configuration to revert any changes
+            await loadProjectConfiguration();
+        }
+    }
+
+    function populateFileSelectors(files) {
+        const requirementsSelect = document.getElementById('requirements-path');
+        const startupSelect = document.getElementById('startup-file');
+
+        // Clear existing options (except the first placeholder option)
+        requirementsSelect.innerHTML = '<option value="">Select requirements.txt file...</option>';
+        startupSelect.innerHTML = '<option value="">Select startup file...</option>';
+
+        // Recursively collect all files
+        const allFiles = [];
+        function collectFiles(fileList, basePath = '') {
+            fileList.forEach(file => {
+                const fullPath = basePath ? `${basePath}/${file.name}` : file.name;
+                if (file.is_directory) {
+                    if (file.children && file.children.length > 0) {
+                        collectFiles(file.children, fullPath);
+                    }
+                } else {
+                    allFiles.push({
+                        name: file.name,
+                        path: fullPath
+                    });
+                }
+            });
+        }
+
+        collectFiles(files);
+
+        // Populate requirements selector with .txt files
+        const txtFiles = allFiles.filter(file =>
+            file.name.toLowerCase().includes('requirements') &&
+            file.name.toLowerCase().endsWith('.txt')
+        );
+
+        txtFiles.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file.path;
+            // Display path with visual indication if it contains spaces
+            const displayText = file.path.includes(' ') ? `📁 ${file.path}` : file.path;
+            option.textContent = displayText;
+            option.title = `Full path: ${file.path}${file.path.includes(' ') ? ' (contains spaces - fully supported)' : ''}`;
+            requirementsSelect.appendChild(option);
+        });
+
+        // Add other .txt files as secondary options
+        const otherTxtFiles = allFiles.filter(file =>
+            file.name.toLowerCase().endsWith('.txt') &&
+            !file.name.toLowerCase().includes('requirements')
+        );
+
+        if (otherTxtFiles.length > 0 && txtFiles.length > 0) {
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '── Other .txt files ──';
+            requirementsSelect.appendChild(separator);
+        }
+
+        otherTxtFiles.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file.path;
+            // Display path with visual indication if it contains spaces
+            const displayText = file.path.includes(' ') ? `📁 ${file.path}` : file.path;
+            option.textContent = displayText;
+            option.title = `Full path: ${file.path}${file.path.includes(' ') ? ' (contains spaces - fully supported)' : ''}`;
+            requirementsSelect.appendChild(option);
+        });
+
+        // Populate startup file selector with .py and .sh files
+        const pyFiles = allFiles.filter(file => file.name.toLowerCase().endsWith('.py'));
+        const shFiles = allFiles.filter(file => file.name.toLowerCase().endsWith('.sh'));
+
+        pyFiles.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file.path;
+            // Display path with visual indication if it contains spaces
+            const displayText = file.path.includes(' ') ? `🐍 ${file.path}` : file.path;
+            option.textContent = displayText;
+            option.title = `Full path: ${file.path}${file.path.includes(' ') ? ' (contains spaces - fully supported)' : ''}`;
+            startupSelect.appendChild(option);
+        });
+
+        // Add shell script files with a separator if we have both types
+        if (shFiles.length > 0 && pyFiles.length > 0) {
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '── Shell scripts (.sh) ──';
+            startupSelect.appendChild(separator);
+        }
+
+        shFiles.forEach(file => {
+            const option = document.createElement('option');
+            option.value = file.path;
+            // Display path with shell script icon
+            const displayText = file.path.includes(' ') ? `📜 ${file.path}` : file.path;
+            option.textContent = displayText;
+            option.title = `Full path: ${file.path}${file.path.includes(' ') ? ' (contains spaces - fully supported)' : ''}`;
+            startupSelect.appendChild(option);
+        });
+
+        // Restore current configuration values after populating
+        loadProjectConfiguration();
+    }
+
+    async function loadProjectDetails() {
+        try {
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}`);
+
+            // Store current project name for rename feature
+            currentProjectName = response.name;
+            currentProjectStatus = response.status; // Update global status
+            currentProjectData = response; // Store full data for logic checks
+
+
+            document.getElementById('project-name').textContent = response.name;
+            document.getElementById('project-info').innerHTML = `
+            Project ID: ${response.id}<br>
+            Created ${BotDeployer.formatDate(response.created_at)}<br>
+            Last modified ${BotDeployer.formatDate(response.updated_at)}
+        `;
+
+            // Update status
+            const statusElement = document.getElementById('project-status');
+            statusElement.className = `status ${BotDeployer.getStatusClass(response.status)}`;
+            statusElement.innerHTML = `
+            <div class="status-dot"></div>
+            <span>${getStatusLabel(response.status)}</span>
+        `;
+
+            // Update error control panel
+            updateErrorControlPanel(response);
+
+            // Update rename button visibility based on status
+            updateRenameButtonVisibility(response.status);
+
+        } catch (error) {
+            console.error('Failed to load project details:', error);
+            BotDeployer.showAlert('Failed to load details', 'error');
+        }
+    }
+
+    async function loadProjectFiles(isAutoRefresh = false) {
+        try {
+            const container = document.getElementById('file-tree-container');
+
+            // Only show spinner if not auto-refreshing
+            // AND stabilize height to prevent jumping
+            if (!isAutoRefresh) {
+                // Lock height to current height
+                if (container.offsetHeight > 0) {
+                    container.style.minHeight = `${container.offsetHeight}px`;
+                }
+
+                container.innerHTML = `
+                <div class="loading-indicator text-center">
+                    <div class="spinner"></div>
+                    <span class="ml-2">Loading files...</span>
+                </div>
+            `;
+            }
+
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/files?t=${Date.now()}`);
+            displayFileTree(response.files);
+
+            // Unlock height after rendering
+            if (!isAutoRefresh) {
+                container.style.minHeight = '';
+            }
+
+        } catch (error) {
+            console.error('Failed to load files:', error);
+            // Only show error UI if not auto-refreshing or if container is empty
+            const container = document.getElementById('file-tree-container');
+            if (!isAutoRefresh || container.innerHTML.trim() === '') {
+                container.innerHTML = `
+                <div class="text-center text-muted">
+                    <div class="text-3xl mb-4">📂</div>
+                    <h4>No files uploaded yet</h4>
+                    <p>Upload some files to get started with your bot project.</p>
+                </div>
+            `;
+                container.style.minHeight = '';
+            }
+        }
+    }
+
+    function displayFileTree(files) {
+        const container = document.getElementById('file-tree-container');
+
+        if (!files || files.length === 0) {
+            container.innerHTML = `
+            <div class="text-center text-muted">
+                <div class="text-3xl mb-4">📂</div>
+                <h4>No files uploaded yet</h4>
+                <p>Upload some files to get started with your bot project.</p>
+            </div>
+        `;
+            // Clear file selectors when no files
+            populateFileSelectors([]);
+            return;
+        }
+
+        container.innerHTML = `
+        <div class="file-tree">
+            ${files.map(file => renderFileItem(file, 0)).join('')}
+        </div>
+    `;
+
+        // Populate configuration file selectors
+        populateFileSelectors(files);
+    }
+
+    function renderFileItem(file, depth) {
+        const indent = depth * 20;
+        const icon = file.is_directory ? '📁' : getFileIcon(file.name);
+        const sizeText = file.is_directory ? '' : `<span class="file-size">${BotDeployer.formatFileSize(file.size)}</span>`;
+
+        // Generate unique ID for folder - properly escape special characters including spaces
+        const folderId = file.is_directory ? `folder-${file.path.replace(/[^a-zA-Z0-9]/g, '-')}` : '';
+
+        // Properly escape file path and name for HTML attributes and JavaScript
+        const escapedPath = file.path.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        const escapedName = file.name.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        const jsEscapedPath = file.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        const jsEscapedName = file.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+
+        // Check if folder is expanded
+        const isExpanded = file.is_directory && expandedFolders.has(folderId);
+        const arrowChar = isExpanded ? '▼' : '▶';
+        const displayStyle = isExpanded ? 'block' : 'none';
+        const expandTitle = isExpanded ? 'Collapse folder' : 'Expand folder';
+
+        let html = `
+        <div class="file-item" style="padding-left: ${indent + 24}px">
+            <div class="file-info">
+                ${file.is_directory && file.children && file.children.length > 0 ?
+                `<button class="folder-toggle" onclick="toggleFolder('${folderId}')" title="${expandTitle}">
+                        <span class="folder-arrow" id="arrow-${folderId}">${arrowChar}</span>
+                    </button>` :
+                '<span class="folder-spacer"></span>'
+            }
+                <span class="file-icon">${icon}</span>
+                <span class="file-name" title="${escapedName}">${escapedName}</span>
+            </div>
+            ${sizeText}
+            <span class="file-date">${BotDeployer.formatFileDate(file.modified_at)}</span>
+            <div class="file-actions">
+                <button type="button" class="btn btn-sm btn-danger" onclick="showDeleteFileModal('${jsEscapedPath}', '${jsEscapedName}')" title="Delete ${escapedName}">
+                    ✕
+                </button>
+            </div>
+        </div>
+    `;
+
+        // Add children if it's a directory
+        if (file.is_directory && file.children && file.children.length > 0) {
+            html += `<div class="folder-contents" id="${folderId}" style="display: ${displayStyle};">`;
+            html += file.children.map(child => renderFileItem(child, depth + 1)).join('');
+            html += '</div>';
+        }
+
+        return html;
+    }
+
+    function toggleFolder(folderId) {
+        const folderContents = document.getElementById(folderId);
+        const arrow = document.getElementById(`arrow-${folderId}`);
+
+        if (folderContents && arrow) {
+            if (folderContents.style.display === 'none') {
+                folderContents.style.display = 'block';
+                arrow.textContent = '▼';
+                arrow.parentElement.title = 'Collapse folder';
+                expandedFolders.add(folderId);
+            } else {
+                folderContents.style.display = 'none';
+                arrow.textContent = '▶';
+                arrow.parentElement.title = 'Expand folder';
+                expandedFolders.delete(folderId);
+            }
+        }
+    }
+
+    function toggleAllFolders() {
+        const toggleBtn = document.getElementById('toggle-all-btn');
+        const allFolderContents = document.querySelectorAll('.folder-contents');
+        const allArrows = document.querySelectorAll('.folder-arrow');
+
+        if (allFolderContents.length === 0) return;
+
+        // Check if any folders are currently expanded
+        const hasExpandedFolders = Array.from(allFolderContents).some(folder => folder.style.display === 'block');
+
+        if (hasExpandedFolders) {
+            // Collapse all
+            allFolderContents.forEach(folder => folder.style.display = 'none');
+            allArrows.forEach(arrow => {
+                arrow.textContent = '▶';
+                arrow.parentElement.title = 'Expand folder';
+            });
+            toggleBtn.innerHTML = '📂 Expand all';
+            expandedFolders.clear();
+        } else {
+            // Expand all
+            allFolderContents.forEach(folder => {
+                folder.style.display = 'block';
+                expandedFolders.add(folder.id);
+            });
+            allArrows.forEach(arrow => {
+                arrow.textContent = '▼';
+                arrow.parentElement.title = 'Collapse folder';
+            });
+            toggleBtn.innerHTML = '📁 Collapse all';
+        }
+    }
+
+    function getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const iconMap = {
+            'py': '🐍',
+            'txt': '📄',
+            'md': '📝',
+            'json': '📋',
+            'yml': '⚙️',
+            'yaml': '⚙️',
+            'dockerfile': '🐳',
+            'sh': '📜',
+            'bat': '📜',
+            'env': '🔧',
+            'cfg': '⚙️',
+            'ini': '⚙️',
+            'log': '📊'
+        };
+        return iconMap[ext] || '📄';
+    }
+
+    function getStatusLabel(status) {
+        const statusMap = {
+            'created': 'Created',
+            'configured': 'Configured',
+            'deploying': 'Deploying',
+            'running': 'Running',
+            'error': 'Error',
+            'stopped': 'Stopped',
+            'failed': 'Failed',
+            'maintenance': 'Maintenance'
+        };
+        return statusMap[status] || status;
+    }
+
+    function setupDragAndDrop() {
+        const uploadArea = document.getElementById('file-upload-area');
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        // Handle dropped files
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        // Handle click to select files
+        uploadArea.addEventListener('click', function (e) {
+            if (e.target === uploadArea || e.target.closest('.file-upload-content')) {
+                // Check if Shift key is held down for folder selection
+                if (e.shiftKey) {
+                    selectFolder();
+                } else {
+                    selectFiles();
+                }
+            }
+        });
+    }
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function highlight(e) {
+        document.getElementById('file-upload-area').classList.add('dragover');
+    }
+
+    function unhighlight(e) {
+        document.getElementById('file-upload-area').classList.remove('dragover');
+    }
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+
+        // Check if we're dropping folders by looking at the items
+        if (dt.items) {
+            const items = Array.from(dt.items);
+            const hasDirectories = items.some(item =>
+                item.webkitGetAsEntry && item.webkitGetAsEntry()?.isDirectory
+            );
+
+            if (hasDirectories) {
+                // Handle directory drops using the DataTransferItemList API
+                handleDirectoryDrop(items);
+                return;
+            }
+        }
+
+        // Handle regular file drops
+        handleFiles(files);
+    }
+
+    async function handleDirectoryDrop(items) {
+        console.log('Handling directory drop with', items.length, 'items');
+        const files = [];
+        const maxFiles = 1000; // Safety limit
+
+        // Process each dropped item
+        for (const item of items) {
+            if (item.webkitGetAsEntry) {
+                const entry = item.webkitGetAsEntry();
+                if (entry) {
+                    console.log('Processing entry:', entry.name, entry.isDirectory ? '(directory)' : '(file)');
+                    await processEntry(entry, '', files, maxFiles);
+
+                    // Check if we've hit the limit
+                    if (files.length >= maxFiles) {
+                        console.warn(`File limit reached (${maxFiles}), stopping processing`);
+                        BotDeployer.showAlert(`Too many files in folder. Only the first ${maxFiles} files will be uploaded.`, 'warning');
+                        break;
+                    }
+                }
+            }
+        }
+
+        console.log(`Collected ${files.length} files from directory drop`);
+
+        // Convert to File objects and upload
+        if (files.length > 0) {
+            handleFiles(files);
+        } else {
+            BotDeployer.showAlert('No files found in the dropped folder', 'warning');
+        }
+    }
+
+    function processEntry(entry, path, files, maxFiles = 1000) {
+        return new Promise((resolve) => {
+            // Check file limit
+            if (files.length >= maxFiles) {
+                resolve();
+                return;
+            }
+
+            if (entry.isFile) {
+                entry.file((file) => {
+                    // Check file limit again
+                    if (files.length >= maxFiles) {
+                        resolve();
+                        return;
+                    }
+
+                    // Create a new File object with the full path
+                    const fullPath = path ? `${path}/${file.name}` : file.name;
+                    console.log('Adding file:', fullPath);
+
+                    const fileWithPath = new File([file], fullPath, {
+                        type: file.type,
+                        lastModified: file.lastModified
+                    });
+
+                    // Set webkitRelativePath for consistency
+                    Object.defineProperty(fileWithPath, 'webkitRelativePath', {
+                        value: fullPath,
+                        writable: false
+                    });
+
+                    files.push(fileWithPath);
+                    resolve();
+                }, (error) => {
+                    console.error('Error reading file:', entry.name, error);
+                    resolve(); // Continue processing other files
+                });
+            } else if (entry.isDirectory) {
+                const dirReader = entry.createReader();
+                dirReader.readEntries(async (entries) => {
+                    const newPath = path ? `${path}/${entry.name}` : entry.name;
+                    console.log(`Processing directory: ${newPath} with ${entries.length} entries`);
+
+                    // Process all entries in this directory
+                    const promises = entries.map(childEntry =>
+                        processEntry(childEntry, newPath, files, maxFiles)
+                    );
+
+                    await Promise.all(promises);
+                    resolve();
+                }, (error) => {
+                    console.error('Error reading directory:', entry.name, error);
+                    resolve(); // Continue processing other entries
+                });
+            } else {
+                console.log('Skipping unknown entry type:', entry.name);
+                resolve();
+            }
+        });
+    }
+
+    function setupFileInputs() {
+        document.getElementById('single-file-input').addEventListener('change', function (e) {
+            handleFiles(e.target.files);
+        });
+
+        document.getElementById('file-input').addEventListener('change', function (e) {
+            handleFiles(e.target.files);
+        });
+    }
+
+    function selectFiles() {
+        document.getElementById('single-file-input').click();
+    }
+
+    function selectFolder() {
+        document.getElementById('file-input').click();
+    }
+
+    async function handleFiles(files) {
+        if (files.length === 0) return;
+
+        console.log(`Handling ${files.length} files`);
+
+        // Check for reasonable file count limit on client side
+        if (files.length > 1000) {
+            BotDeployer.showAlert('Too many files selected. Please select fewer than 1000 files.', 'error');
+            return;
+        }
+
+        const formData = new FormData();
+
+        // Handle files with proper path preservation
+        Array.from(files).forEach((file, index) => {
+            // For drag and drop, use the file's webkitRelativePath if available
+            // Otherwise, use the file name directly
+            let fileName = file.name;
+
+            // Check if this is from a directory upload (webkitRelativePath is set)
+            if (file.webkitRelativePath && file.webkitRelativePath.trim() !== '') {
+                fileName = file.webkitRelativePath;
+            }
+
+            console.log(`File ${index}: ${fileName} (original: ${file.name})`);
+
+            // Create a new File object with the correct name/path
+            const fileWithPath = new File([file], fileName, {
+                type: file.type,
+                lastModified: file.lastModified
+            });
+
+            formData.append('files', fileWithPath);
+        });
+
+        try {
+            showUploadProgress();
+
+            console.log('Sending upload request...');
+            const response = await fetch(`/api/projects/${currentProjectId}/files`, {
+                method: 'POST',
+                body: formData
+            });
+
+            console.log('Upload response status:', response.status);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('Upload error response:', errorData);
+                throw new Error(errorData.detail || `Upload failed: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            console.log('Upload successful:', result);
+            BotDeployer.showAlert(`Successfully uploaded ${result.length} file(s)`, 'success');
+
+            // Refresh file list and configuration selectors
+            await loadProjectFiles();
+
+        } catch (error) {
+            console.error('Upload failed:', error);
+            BotDeployer.showAlert(error.message, 'error');
+        } finally {
+            hideUploadProgress();
+            // Clear file inputs
+            document.getElementById('single-file-input').value = '';
+            document.getElementById('file-input').value = '';
+        }
+    }
+
+    function showUploadProgress() {
+        const progressElement = document.getElementById('upload-progress');
+        const uploadArea = document.getElementById('file-upload-area');
+
+        progressElement.classList.remove('hidden');
+        uploadArea.style.opacity = '0.5';
+
+        // Update progress text
+        const progressText = progressElement.querySelector('span');
+        if (progressText) {
+            progressText.textContent = 'Uploading files...';
+        }
+    }
+
+    function hideUploadProgress() {
+        const progressElement = document.getElementById('upload-progress');
+        const uploadArea = document.getElementById('file-upload-area');
+
+        progressElement.classList.add('hidden');
+        uploadArea.style.opacity = '1';
+    }
+
+    function refreshFiles() {
+        loadProjectFiles();
+    }
+
+    function showDeleteFileModal(filePath, fileName) {
+        console.log('showDeleteFileModal called with:', filePath, fileName);
+
+        // Only show modal if we have valid parameters and we're actually deleting a file
+        if (!filePath || !fileName || filePath === '' || fileName === '') {
+            console.error('Invalid parameters for showDeleteFileModal:', filePath, fileName);
+            console.error('Modal will not be shown due to invalid parameters');
+            return;
+        }
+
+        // Additional check to ensure this is a legitimate file deletion
+        if (typeof filePath !== 'string' || typeof fileName !== 'string') {
+            console.error('Parameters must be strings:', typeof filePath, typeof fileName);
+            return;
+        }
+
+        // Store the file path for deletion (no need to escape here, just store as-is)
+        currentDeleteFilePath = filePath;
+
+        // Update modal content with properly escaped filename for display
+        const fileNameElement = document.getElementById('delete-file-name');
+        if (fileNameElement) {
+            fileNameElement.textContent = fileName; // textContent automatically escapes
+        }
+
+        // Show the modal
+        const modal = document.getElementById('delete-file-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+    }
+
+    function hideDeleteFileModal() {
+        console.log('hideDeleteFileModal called');
+        document.getElementById('delete-file-modal').classList.add('hidden');
+        currentDeleteFilePath = null;
+    }
+
+    async function confirmDeleteFile() {
+        if (!currentDeleteFilePath) return;
+
+        try {
+            const deleteBtn = document.getElementById('confirm-delete-file-btn');
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = 'Deleting...';
+
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/files?path=${encodeURIComponent(currentDeleteFilePath)}`, {
+                method: 'DELETE'
+            });
+
+            BotDeployer.showAlert('File deleted successfully', 'success');
+            hideDeleteFileModal();
+            await loadProjectFiles();
+
+        } catch (error) {
+            console.error('Delete failed:', error);
+            BotDeployer.showAlert('Failed to delete file: ' + error.message, 'error');
+        } finally {
+            const deleteBtn = document.getElementById('confirm-delete-file-btn');
+            deleteBtn.disabled = false;
+            deleteBtn.textContent = 'Delete file';
+        }
+    }
+
+    // Rename project functions
+    let currentProjectName = '';
+
+    function showRenameModal() {
+        const modal = document.getElementById('rename-project-modal');
+        const nameInput = document.getElementById('new-project-name');
+        const errorDiv = document.getElementById('rename-error');
+
+        // Pre-fill with current project name
+        nameInput.value = currentProjectName;
+        errorDiv.style.display = 'none';
+
+        modal.classList.remove('hidden');
+        nameInput.focus();
+        nameInput.select();
+    }
+
+    function hideRenameModal() {
+        const modal = document.getElementById('rename-project-modal');
+        const errorDiv = document.getElementById('rename-error');
+
+        modal.classList.add('hidden');
+        errorDiv.style.display = 'none';
+    }
+
+    async function confirmRename() {
+        const nameInput = document.getElementById('new-project-name');
+        const errorDiv = document.getElementById('rename-error');
+        const confirmBtn = document.getElementById('confirm-rename-btn');
+
+        const newName = nameInput.value.trim();
+
+        // Validate input
+        if (!newName) {
+            errorDiv.textContent = 'Please enter a project name.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        if (newName.length > 50) {
+            errorDiv.textContent = 'Project name cannot exceed 50 characters.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        if (newName === currentProjectName) {
+            errorDiv.textContent = 'Please enter a different name.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Renaming...';
+            errorDiv.style.display = 'none';
+
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/rename`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name: newName })
+            });
+
+            BotDeployer.showAlert('Project renamed successfully! Redirecting...', 'success');
+            hideRenameModal();
+
+            // Redirect to new project URL
+            setTimeout(() => {
+                window.location.href = `/projects/${response.new_id}`;
+            }, 1000);
+
+        } catch (error) {
+            console.error('Rename failed:', error);
+            errorDiv.textContent = error.message || 'Failed to rename project.';
+            errorDiv.style.display = 'block';
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Rename project';
+        }
+    }
+
+    function updateRenameButtonVisibility(status) {
+        const renameBtn = document.getElementById('rename-btn');
+
+        // Only show rename button when container is stopped, configured, created, or failed
+        const canRename = ['stopped', 'configured', 'created', 'failed'].includes(status);
+        renameBtn.style.display = canRename ? 'inline-flex' : 'none';
+    }
+
+    // Handle keyboard shortcuts
+    document.addEventListener('keydown', function (event) {
+        // Escape key closes modals
+        if (event.key === 'Escape') {
+            hideDeleteFileModal();
+            hideRenameModal();
+            hideMaintenanceModal();
+        }
+
+        // Ctrl+U or Cmd+U opens file upload
+        if ((event.ctrlKey || event.metaKey) && event.key === 'u') {
+            event.preventDefault();
+            selectFiles();
+        }
+
+        // Enter key in rename modal confirms rename
+        if (event.key === 'Enter') {
+            const renameModal = document.getElementById('rename-project-modal');
+            if (renameModal && !renameModal.classList.contains('hidden')) {
+                event.preventDefault();
+                confirmRename();
+            }
+        }
+    });
+
+    function openMaintenanceMenu() {
+        const modal = document.getElementById('maintenance-mode-modal');
+        const startState = document.getElementById('maintenance-state-start');
+        const activeState = document.getElementById('maintenance-state-active');
+        const footerStartState = document.getElementById('maintenance-footer-start');
+        const footerActiveState = document.getElementById('maintenance-footer-active');
+
+        if (!modal) return;
+
+        // Toggle view based on current status
+        const isMaintenance = currentProjectStatus === 'maintenance';
+
+        if (isMaintenance) {
+            startState.classList.add('hidden');
+            footerStartState.classList.add('hidden');
+            activeState.classList.remove('hidden');
+            footerActiveState.classList.remove('hidden');
+            // Fetch command if we are in active state
+            fetchMaintenanceCommand();
+        } else {
+            startState.classList.remove('hidden');
+            footerStartState.classList.remove('hidden');
+            activeState.classList.add('hidden');
+            footerActiveState.classList.add('hidden');
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    function fetchMaintenanceCommand() {
+        // Fetch the command to display
+        const input = document.getElementById('maintenance-modal-command');
+        if (input) {
+            input.value = 'Loading...';
+            BotDeployer.apiCall(`/projects/${currentProjectId}/docker-exec-command`)
+                .then(response => {
+                    input.value = response.command;
+                })
+                .catch(err => {
+                    console.error('Failed to get command', err);
+                    input.value = 'Error loading command';
+                });
+        }
+    }
+
+    function hideMaintenanceModal() {
+        const modal = document.getElementById('maintenance-mode-modal');
+        if (modal) modal.classList.add('hidden');
+
+        // Reset button states
+        const startBtn = document.getElementById('confirm-maintenance-btn');
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.innerHTML = 'Start maintenance mode';
+        }
+
+        const exitBtn = document.getElementById('confirm-exit-maintenance-btn');
+        if (exitBtn) {
+            exitBtn.disabled = false;
+            exitBtn.innerHTML = 'Exit maintenance mode';
+        }
+    }
+
+    // Legacy function support redirected to new menu
+    function startMaintenanceMode() {
+        openMaintenanceMenu();
+    }
+
+    async function confirmStartMaintenance() {
+        const btn = document.getElementById('confirm-maintenance-btn');
+
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Starting...';
+
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/maintenance/start`, {
+                method: 'POST'
+            });
+
+            BotDeployer.showAlert('Maintenance mode started', 'success');
+            // Don't hide modal, instead switch view to active state
+            currentProjectStatus = 'maintenance'; // Optimistic update
+            openMaintenanceMenu();
+
+            // Refresh real status
+            loadDeploymentStatus();
+
+        } catch (error) {
+            console.error('Failed to start maintenance mode:', error);
+            BotDeployer.showAlert('Failed to start maintenance mode: ' + error.message, 'error');
+            btn.innerHTML = 'Start Maintenance';
+            btn.disabled = false;
+        }
+    }
+
+    async function copyMaintenanceCommand(btn) {
+        const input = document.getElementById('maintenance-modal-command');
+        if (!input || !input.value) return;
+
+        try {
+            // Use same fallback logic as main copy function
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(input.value);
+            } else {
+                input.select();
+                document.execCommand('copy');
+            }
+
+            // Visual feedback
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = '✓';
+            btn.classList.add('text-success');
+
+            setTimeout(() => {
+                btn.innerHTML = originalIcon;
+                btn.classList.remove('text-success');
+            }, 2000);
+
+            BotDeployer.showAlert('Command copied to clipboard', 'success');
+        } catch (err) {
+            console.error('Copy failed', err);
+            BotDeployer.showAlert('Failed to copy', 'error');
+        }
+    }
+
+    async function exitMaintenanceMode() {
+        const btn = document.getElementById('confirm-exit-maintenance-btn');
+        try {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '⏳ Exiting...';
+            }
+
+            await BotDeployer.apiCall(`/projects/${currentProjectId}/maintenance/exit`, {
+                method: 'POST'
+            });
+            BotDeployer.showAlert('Exited maintenance mode', 'success');
+
+            // Close the menu/modal
+            hideMaintenanceModal();
+
+            // Refresh status
+            loadDeploymentStatus();
+        } catch (error) {
+            console.error('Failed to exit maintenance mode:', error);
+            BotDeployer.showAlert('Failed to exit maintenance mode: ' + error.message, 'error');
+            if (btn) {
+                btn.innerHTML = 'Exit maintenance mode';
+                btn.disabled = false;
+            }
+        }
+    }
+
+    // Docker exec command copy function
+    async function copyDockerExecCommand() {
+        const button = document.getElementById('copy-docker-cmd-btn');
+        const originalText = button.innerHTML;
+
+        try {
+            // Disable button during request
+            button.disabled = true;
+            button.innerHTML = '⏳ Loading...';
+
+            // Fetch the docker exec command from the API
+            const response = await BotDeployer.apiCall(`/projects/${currentProjectId}/docker-exec-command`);
+
+            // Copy to clipboard with fallback for non-secure contexts (HTTP)
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(response.command);
+            } else {
+                // Fallback for HTTP environments where navigator.clipboard is blocked
+                const textArea = document.createElement("textarea");
+                textArea.value = response.command;
+
+                // Ensure textarea is not visible but part of DOM
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                textArea.style.top = "0";
+                document.body.appendChild(textArea);
+
+                textArea.focus();
+                textArea.select();
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (!successful) {
+                        throw new Error('Copy command failed');
+                    }
+                } finally {
+                    document.body.removeChild(textArea);
+                }
+            }
+
+            // Show success feedback
+            button.innerHTML = '✓ Copied!';
+            button.classList.remove('btn-secondary');
+            button.classList.add('btn-success');
+
+            BotDeployer.showAlert('Docker exec command copied to clipboard!', 'success');
+
+            // Reset button after 2 seconds
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-secondary');
+                button.disabled = false;
+            }, 2000);
+
+        } catch (error) {
+            console.error('Failed to copy docker exec command:', error);
+            BotDeployer.showAlert('Failed to copy command: ' + error.message, 'error');
+
+            // Reset button on error
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    }
+
+</script>
+{% endblock %}
