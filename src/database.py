@@ -75,3 +75,18 @@ def migrate_db():
                 print("Migration successful.")
             except Exception as e:
                 print(f"Migration failed: {str(e)}")
+
+        # Check if python_version exists in projects table
+        try:
+            # Try to select the column
+            conn.execute(text("SELECT python_version FROM projects LIMIT 1"))
+        except Exception:
+            # Column doesn't exist, add it
+            print("Migrating database: Adding python_version column to projects table...")
+            try:
+                # SQLite ALTER TABLE ADD COLUMN
+                conn.execute(text("ALTER TABLE projects ADD COLUMN python_version VARCHAR NOT NULL DEFAULT '3.11'"))
+                conn.commit()
+                print("Migration successful.")
+            except Exception as e:
+                print(f"Migration failed: {str(e)}")
