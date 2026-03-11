@@ -520,6 +520,8 @@ class ProjectService:
                 requirements_path=project.requirements_path,
                 startup_file=project.startup_file,
                 auto_start=project.auto_start,
+                system_dependencies=project.system_dependencies,
+                python_version=project.python_version,
                 container_id=project.container_id,
                 errors_silenced=project.errors_silenced,
                 last_error_acknowledged_at=project.last_error_acknowledged_at,

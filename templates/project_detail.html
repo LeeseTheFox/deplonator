@@ -2241,6 +2241,42 @@
         handleFiles(files);
     }
 
+    function isJunkFile(name, isDirectory) {
+        const lowerName = name.toLowerCase();
+
+        // Folders to ignore
+        const junkFolders = [
+            '__pycache__',
+            '.git',
+            '.vscode',
+            '.idea',
+            '.venv',
+            'venv',
+            'env',
+            'node_modules'
+        ];
+
+        // Files to ignore
+        const junkFiles = [
+            '.ds_store',
+            'thumbs.db',
+            'desktop.ini'
+        ];
+
+        // Extensions to ignore
+        const junkExtensions = ['.pyc', '.pyo', '.pyd'];
+
+        if (isDirectory) {
+            return junkFolders.includes(lowerName);
+        } else {
+            // Check specific file names
+            if (junkFiles.includes(lowerName)) return true;
+
+            // Check extensions
+            return junkExtensions.some(ext => lowerName.endsWith(ext));
+        }
+    }
+
     async function handleDirectoryDrop(items) {
         console.log('Handling directory drop with', items.length, 'items');
         const files = [];
@@ -2276,8 +2312,13 @@
 
     function processEntry(entry, path, files, maxFiles = 1000) {
         return new Promise((resolve) => {
-            // Check file limit
             if (files.length >= maxFiles) {
+                resolve();
+                return;
+            }
+
+            if (isJunkFile(entry.name, entry.isDirectory)) {
+                console.log(`Skipping junk ${entry.isDirectory ? 'folder' : 'file'}: ${entry.name}`);
                 resolve();
                 return;
             }
@@ -2365,9 +2406,17 @@
         }
 
         const formData = new FormData();
+        let skippedCount = 0;
 
         // Handle files with proper path preservation
         Array.from(files).forEach((file, index) => {
+            // Check if it's a junk file
+            if (isJunkFile(file.name, false)) {
+                console.log(`Skipping junk file: ${file.name}`);
+                skippedCount++;
+                return;
+            }
+
             // For drag and drop, use the file's webkitRelativePath if available
             // Otherwise, use the file name directly
             let fileName = file.name;
@@ -2407,7 +2456,11 @@
 
             const result = await response.json();
             console.log('Upload successful:', result);
-            BotDeployer.showAlert(`Successfully uploaded ${result.length} file(s)`, 'success');
+            let successMessage = `Successfully uploaded ${result.length} file(s)`;
+            if (skippedCount > 0) {
+                successMessage += ` (${skippedCount} junk file(s) skipped)`;
+            }
+            BotDeployer.showAlert(successMessage, 'success');
 
             // Refresh file list and configuration selectors
             await loadProjectFiles();
